@@ -1,19 +1,24 @@
 # AutoFlow
 
-桌面自动化工具，核心能力是**屏幕识别**和**键鼠控制**。通过可视化流程编辑器编排自动化任务，REST API 暴露所有能力，可作为 AI Agent 的底层工具。
+Windows 桌面自动化工具，核心能力是**屏幕感知**（截图、图像识别）和**输入控制**（键鼠模拟）。通过 REST API 对外暴露能力，用户可通过可视化流程编辑器创建自动化任务。未来提供 MCP Server，可作为 AI Agent 的眼睛和手。
 
 ## 架构
 
-两层架构，边界严格：
+严格三层，边界清晰：
+
+- **Layer 1 - Engine**（`app/engine/`）：纯 Python，零框架依赖，所有业务逻辑和系统操作在这里，可独立测试
+- **Layer 2 - Core API**（`app/api/`、`app/ws/`，未来 `app/mcp/`）：FastAPI 薄路由层，是 Engine 的接入点之一。WebUI、开发者调用、AI Agent（MCP）平级共享同一 Engine 实例
+- **Layer 3 - WebUI**（`webui/`）：React 纯前端，只通过 HTTP/WebSocket 与 Core API 交互
 
 ```
-app/                  # Python 后端（FastAPI + 业务引擎）
-├── api/              # REST API 路由层
-├── ws/               # WebSocket 实时日志推送
-├── engine/           # 核心引擎（纯 Python，不依赖 FastAPI）
+app/                  # Python 后端
+├── api/              # REST API 路由层（Layer 2）
+├── ws/               # WebSocket 实时日志推送（Layer 2）
+├── mcp/              # MCP Server（Layer 2，第二阶段）
+├── engine/           # 核心引擎（Layer 1，纯 Python，不依赖 FastAPI）
 │   ├── screen.py         # ScreenCapture / ImageMatcher 抽象接口
 │   ├── screen_mss.py     # mss 截图实现
-│   ├── matcher_orb.py    # OpenCV 模板匹配实现
+│   ├── matcher_orb.py    # OpenCV ORB 特征点匹配实现
 │   ├── input.py          # InputController 抽象接口
 │   ├── input_pyautogui.py # pyautogui 实现
 │   ├── workflow.py       # 流程执行状态机
@@ -37,7 +42,7 @@ webui/                # React 前端（仅通过 API 交互）
 | 层 | 技术 |
 |---|---|
 | 后端 | Python 3.12+, FastAPI, uvicorn, SQLModel + SQLite, pydantic-settings |
-| 引擎 | mss (截图), OpenCV (模板匹配), pyautogui (键鼠) |
+| 引擎 | mss (截图), OpenCV (ORB 特征点匹配), pyautogui (键鼠) |
 | 前端 | React 19, TypeScript, ReactFlow, React Router, Vite |
 | 测试 | pytest + pytest-asyncio + httpx |
 | Lint | Ruff |
@@ -120,6 +125,20 @@ ENGINE__IMAGE_MATCHER=orb
 ENGINE__INPUT_BACKEND=pyautogui
 ENGINE__MATCH_CONFIDENCE=0.8
 ```
+
+## 开发阶段
+
+### 第一阶段（当前）
+
+FastAPI 骨架、引擎层抽象接口与一期实现、流程执行引擎、REST API、WebUI 流程编辑器、模板图管理、TDD 全覆盖。
+
+### 第二阶段（规划中）
+
+- MCP Server：将 screen/input 能力包装为 MCP tools，与 FastAPI 共享引擎实例
+- 内置截图选区工具（tkinter 全屏透明选区窗口）
+- 桌面打包：pywebview + PyInstaller
+- 驱动级键鼠：Interception 驱动方案
+- 高级图像识别：DINOv2 特征匹配
 
 ## License
 
