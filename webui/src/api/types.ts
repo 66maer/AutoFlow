@@ -5,6 +5,8 @@ export interface Workflow {
   nodes: FlowNode[]
   edges: FlowEdge[]
   enabled: boolean
+  repeat_count: number
+  repeat_forever: boolean
   created_at: string
   updated_at: string
 }

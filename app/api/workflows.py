@@ -19,6 +19,8 @@ class WorkflowCreate(BaseModel):
     nodes: list[Any] = []
     edges: list[Any] = []
     enabled: bool = True
+    repeat_count: int = 1
+    repeat_forever: bool = False
 
 
 class WorkflowUpdate(BaseModel):
@@ -27,6 +29,8 @@ class WorkflowUpdate(BaseModel):
     nodes: list[Any] | None = None
     edges: list[Any] | None = None
     enabled: bool | None = None
+    repeat_count: int | None = None
+    repeat_forever: bool | None = None
 
 
 class WorkflowOut(BaseModel):
@@ -36,6 +40,8 @@ class WorkflowOut(BaseModel):
     nodes: list[Any]
     edges: list[Any]
     enabled: bool
+    repeat_count: int
+    repeat_forever: bool
     created_at: datetime
     updated_at: datetime
 

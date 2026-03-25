@@ -50,6 +50,19 @@ export const logs = {
   get: (id: string) => request<ExecutionLog>(`/logs/${id}`),
 }
 
+// Templates
+export const templates = {
+  upload: async (file: File | Blob, filename?: string): Promise<{ id: string; filename: string }> => {
+    const form = new FormData()
+    form.append('file', file, filename || 'paste.png')
+    const res = await fetch(`${BASE}/templates/upload`, { method: 'POST', body: form })
+    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
+    return res.json()
+  },
+  previewUrl: (templateId: string) => `${BASE}/templates/${templateId}/preview`,
+  delete: (templateId: string) => request<{ ok: boolean }>(`/templates/${templateId}`, { method: 'DELETE' }),
+}
+
 // WebSocket
 export function connectLogStream(
   onMessage: (data: unknown) => void,

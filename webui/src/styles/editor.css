@@ -46,11 +46,22 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+.palette-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 4px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
 .palette-item {
   padding: 6px 12px;
   font-size: 12px;
   border-radius: 4px;
-  cursor: grab;
+  cursor: pointer;
   background: #f8f8f8;
   border: 1px solid var(--border);
   text-align: center;
@@ -65,16 +76,16 @@
 
 /* Custom nodes */
 .flow-node {
-  padding: 8px 16px;
+  padding: 8px 14px;
   border-radius: 6px;
   border: 2px solid var(--border);
   background: var(--card-bg);
   font-size: 12px;
-  min-width: 120px;
+  min-width: 140px;
+  max-width: 200px;
   text-align: center;
 }
 
-.flow-node.capture { border-color: #2a9d8f; }
 .flow-node.find_image { border-color: #e9c46a; }
 .flow-node.click { border-color: #e76f51; }
 .flow-node.key_press { border-color: #264653; }
@@ -83,14 +94,46 @@
 .flow-node.condition { border-color: #f4a261; border-style: dashed; }
 .flow-node.loop { border-color: #a8dadc; border-width: 3px; }
 
+.flow-node .node-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.flow-node .node-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
 .flow-node .node-label {
   font-weight: 600;
-  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.flow-node .node-thumbnail {
+  margin: 4px auto;
+  max-width: 120px;
+  max-height: 60px;
+  overflow: hidden;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: #f9f9f9;
+}
+
+.flow-node .node-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .flow-node .node-detail {
   color: var(--text-muted);
   font-size: 11px;
+  margin-top: 2px;
+  word-break: break-all;
 }
 
 /* Node config panel */
@@ -105,6 +148,8 @@
   border-radius: var(--radius);
   padding: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
 }
 
 .node-config-panel h3 {
@@ -136,4 +181,131 @@
 .config-field input:focus,
 .config-field select:focus {
   border-color: var(--primary);
+}
+
+.config-thumbnail {
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #f9f9f9;
+}
+
+.config-thumbnail img {
+  width: 100%;
+  display: block;
+  object-fit: contain;
+  max-height: 160px;
+}
+
+/* Config row (side by side fields) */
+.config-row {
+  display: flex;
+  gap: 8px;
+}
+
+.config-row .config-field {
+  flex: 1;
+}
+
+/* Editor toolbar actions */
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Repeat setting */
+.repeat-setting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border);
+  margin-right: 4px;
+}
+
+.repeat-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.repeat-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.repeat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.repeat-input {
+  width: 60px;
+  padding: 3px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+  text-align: center;
+}
+
+.repeat-input:focus {
+  border-color: var(--primary);
+}
+
+/* Template picker */
+.template-picker {
+  margin-bottom: 12px;
+}
+
+.template-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  background: #fafafa;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, background 0.2s;
+  outline: none;
+}
+
+.template-drop-zone:hover,
+.template-drop-zone:focus {
+  border-color: var(--primary);
+  background: #f0f0ff;
+}
+
+.template-drop-zone.has-image {
+  padding: 4px;
+  border-style: solid;
+}
+
+.template-drop-zone img {
+  max-width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.template-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.template-select-btn {
+  margin-top: 6px;
+  width: 100%;
+  font-size: 12px;
+  padding: 4px 8px;
 }

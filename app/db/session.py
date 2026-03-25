@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlmodel import SQLModel
 
@@ -16,10 +17,30 @@ def _get_engine():
     return _engine
 
 
+async def _migrate(conn) -> None:
+    """Add missing columns to existing tables (SQLite has no ALTER TYPE)."""
+    # Columns to ensure exist: (table, column, type, default)
+    migrations: list[tuple[str, str, str, str]] = [
+        ("workflow", "repeat_count", "INTEGER", "1"),
+        ("workflow", "repeat_forever", "BOOLEAN", "0"),
+    ]
+    for table, column, col_type, default in migrations:
+        try:
+            stmt = (
+                f"ALTER TABLE {table} "
+                f"ADD COLUMN {column} {col_type} DEFAULT {default}"
+            )
+            await conn.execute(text(stmt))
+        except Exception:
+            # Column already exists
+            pass
+
+
 async def init_db():
     engine = _get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+        await _migrate(conn)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession]:

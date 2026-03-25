@@ -21,6 +21,8 @@ class Workflow(SQLModel, table=True):
     nodes: list[Any] = Field(default_factory=list, sa_column=Column(JSON))
     edges: list[Any] = Field(default_factory=list, sa_column=Column(JSON))
     enabled: bool = True
+    repeat_count: int = 1
+    repeat_forever: bool = False
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
