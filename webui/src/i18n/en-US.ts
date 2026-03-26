@@ -27,9 +27,19 @@ const enUS = {
 
   // Workflow Editor
   'editor.namePlaceholder': 'Workflow name',
+  'editor.descPlaceholder': 'Add description...',
   'editor.repeatCount': 'Repeat Count',
   'editor.repeatForever': 'Loop Forever',
   'editor.nodeList': 'Nodes',
+
+  // Workflow List
+  'workflows.globalStopKey': 'Global Stop Key',
+  'workflows.runTimes': 'Run',
+  'workflows.runTimesUnit': 'times',
+  'workflows.infinite': 'Infinite',
+  'workflows.running': 'Running',
+  'workflows.runCount': 'Run #{current}',
+  'workflows.confirmDelete': 'Delete workflow "{name}"?',
 
   // Node Categories
   'category.sensor': 'Sensor',

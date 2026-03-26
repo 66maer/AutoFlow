@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { workflows as api } from '../api/client'
 import { useI18n } from '../i18n'
+import KeyRecorder from '../components/KeyRecorder'
+import ConfirmDialog from '../components/ConfirmDialog'
 import type { Workflow } from '../api/types'
 import '../styles/workflow-list.css'
 
@@ -9,35 +11,71 @@ export default function WorkflowList() {
   const { t } = useI18n()
   const [list, setList] = useState<Workflow[]>([])
   const [loading, setLoading] = useState(true)
+  const [runningIds, setRunningIds] = useState<Set<string>>(new Set())
+  const [stopKey, setStopKey] = useState(() => localStorage.getItem('autoflow_stop_key') || 'f9')
+  const [deleteTarget, setDeleteTarget] = useState<Workflow | null>(null)
   const navigate = useNavigate()
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       setList(await api.list())
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
+
+  // Persist stop key
+  useEffect(() => {
+    localStorage.setItem('autoflow_stop_key', stopKey)
+  }, [stopKey])
 
   const handleCreate = async () => {
     const wf = await api.create({ name: 'New Workflow' })
     navigate(`/workflows/${wf.id}`)
   }
 
-  const handleDelete = async (id: string) => {
-    await api.delete(id)
-    setList((prev) => prev.filter((w) => w.id !== id))
+  const handleDeleteClick = (e: React.MouseEvent, wf: Workflow) => {
+    e.stopPropagation()
+    setDeleteTarget(wf)
   }
 
-  const handleRun = async (id: string) => {
-    await api.run(id)
-    load()
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    await api.delete(deleteTarget.id)
+    setList((prev) => prev.filter((w) => w.id !== deleteTarget.id))
+    setDeleteTarget(null)
   }
 
-  const updateRepeat = async (wf: Workflow, updates: { repeat_count?: number; repeat_forever?: boolean }) => {
+  const handleRun = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    setRunningIds((prev) => new Set(prev).add(id))
+    try {
+      await api.run(id)
+    } finally {
+      // After the run API returns, the workflow has finished
+      setRunningIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+
+  const handleStop = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    await api.stop(id)
+    setRunningIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }
+
+  const updateRepeat = async (e: React.MouseEvent | React.ChangeEvent, wf: Workflow, updates: { repeat_count?: number; repeat_forever?: boolean }) => {
+    if ('stopPropagation' in e) e.stopPropagation()
     const newForever = updates.repeat_forever ?? wf.repeat_forever
     const newCount = updates.repeat_count ?? wf.repeat_count
     await api.update(wf.id, {
@@ -54,63 +92,123 @@ export default function WorkflowList() {
   }
 
   return (
-    <>
-      <div className="page-header">
-        <h1>{t('workflows.title')}</h1>
-        <button className="primary" onClick={handleCreate}>
-          {t('workflows.new')}
-        </button>
+    <div className="wf-page">
+      {/* Top bar */}
+      <div className="wf-topbar">
+        <div className="wf-topbar-left">
+          <span className="wf-logo">AutoFlow</span>
+          <button className="primary wf-new-btn" onClick={handleCreate}>
+            + {t('workflows.new').replace('+ ', '')}
+          </button>
+        </div>
+        <div className="wf-topbar-right">
+          <span className="wf-stop-label">{t('workflows.globalStopKey')}</span>
+          <div className="wf-stop-key" onClick={(e) => e.stopPropagation()}>
+            <KeyRecorder value={stopKey} onChange={setStopKey} />
+          </div>
+        </div>
       </div>
-      <div className="page-body">
+
+      {/* Card grid */}
+      <div className="wf-body">
         {loading ? (
-          <p>{t('common.loading')}</p>
+          <p className="wf-empty">{t('common.loading')}</p>
         ) : list.length === 0 ? (
-          <p className="empty-hint">{t('workflows.empty')}</p>
+          <p className="wf-empty">{t('workflows.empty')}</p>
         ) : (
-          <div className="workflow-grid">
-            {list.map((wf) => (
-              <div key={wf.id} className="workflow-card" onClick={() => navigate(`/workflows/${wf.id}`)}>
-                <div className="workflow-card-header">
-                  <h3>{wf.name}</h3>
-                  <span className={`badge ${wf.enabled ? 'enabled' : 'disabled'}`}>
-                    {wf.enabled ? t('common.enabled') : t('common.disabled')}
-                  </span>
-                </div>
-                <p className="workflow-desc">{wf.description || t('workflows.noDesc')}</p>
-                <div className="workflow-meta">
-                  <span>{wf.nodes.length} {t('workflows.nodes', { count: wf.nodes.length }).replace(/^\d+\s*/, '')}</span>
-                  <span>{new Date(wf.updated_at).toLocaleDateString()}</span>
-                </div>
-                <div className="workflow-repeat" onClick={(e) => e.stopPropagation()}>
-                  <label className="repeat-checkbox-card">
+          <div className="wf-grid">
+            {list.map((wf) => {
+              const isRunning = runningIds.has(wf.id)
+              return (
+                <div
+                  key={wf.id}
+                  className={`wf-card ${isRunning ? 'wf-card--running' : ''}`}
+                  onClick={() => navigate(`/workflows/${wf.id}`)}
+                >
+                  {/* Delete button — top left, hidden until hover */}
+                  <button
+                    className="wf-card-delete"
+                    onClick={(e) => handleDeleteClick(e, wf)}
+                    title={t('common.delete')}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+
+                  {/* Card header */}
+                  <div className="wf-card-header">
+                    <h3 className="wf-card-name">{wf.name}</h3>
+                    <p className="wf-card-desc">{wf.description || t('workflows.noDesc')}</p>
+                  </div>
+
+                  {/* Repeat controls — center */}
+                  <div className="wf-card-repeat" onClick={(e) => e.stopPropagation()}>
+                    <span className="wf-repeat-label">{t('workflows.runTimes')}</span>
                     <input
-                      type="checkbox"
-                      checked={wf.repeat_forever}
-                      onChange={(e) => updateRepeat(wf, { repeat_forever: e.target.checked })}
+                      type="number"
+                      className="wf-repeat-input"
+                      min={1}
+                      value={wf.repeat_count || 1}
+                      disabled={wf.repeat_forever}
+                      onChange={(e) => updateRepeat(e, wf, { repeat_count: Math.max(1, Number(e.target.value)) })}
                     />
-                    {t('editor.repeatForever')}
-                  </label>
-                  {!wf.repeat_forever && (
-                    <div className="repeat-count-card">
-                      <span>{t('editor.repeatCount')}</span>
+                    <span className="wf-repeat-label">{t('workflows.runTimesUnit')}</span>
+                    <label className="wf-infinite-check">
                       <input
-                        type="number"
-                        min={1}
-                        value={wf.repeat_count || 1}
-                        onChange={(e) => updateRepeat(wf, { repeat_count: Math.max(1, Number(e.target.value)) })}
+                        type="checkbox"
+                        checked={wf.repeat_forever}
+                        onChange={(e) => updateRepeat(e, wf, { repeat_forever: e.target.checked })}
                       />
+                      {t('workflows.infinite')}
+                    </label>
+                  </div>
+
+                  {/* Footer — run/stop + status */}
+                  <div className="wf-card-footer">
+                    <span className="wf-card-meta">
+                      {wf.nodes.length} {t('workflows.nodes', { count: String(wf.nodes.length) }).replace(/^\d+\s*/, '')}
+                    </span>
+                    <div className="wf-card-actions">
+                      {isRunning && (
+                        <span className="wf-running-badge">{t('workflows.running')}</span>
+                      )}
+                      {isRunning ? (
+                        <button
+                          className="wf-stop-btn"
+                          onClick={(e) => handleStop(e, wf.id)}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="6" width="12" height="12" rx="1" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <button
+                          className="wf-play-btn"
+                          onClick={(e) => handleRun(e, wf.id)}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-                <div className="workflow-actions" onClick={(e) => e.stopPropagation()}>
-                  <button className="ghost" onClick={() => handleRun(wf.id)}>{t('common.run')}</button>
-                  <button className="danger" onClick={() => handleDelete(wf.id)}>{t('common.delete')}</button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
-    </>
+
+      {deleteTarget && (
+        <ConfirmDialog
+          message={t('workflows.confirmDelete', { name: deleteTarget.name })}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+    </div>
   )
 }

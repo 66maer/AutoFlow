@@ -27,9 +27,19 @@ const zhCN = {
 
   // Workflow Editor
   'editor.namePlaceholder': '工作流名称',
+  'editor.descPlaceholder': '添加描述...',
   'editor.repeatCount': '执行次数',
   'editor.repeatForever': '无限循环',
   'editor.nodeList': '节点列表',
+
+  // Workflow List
+  'workflows.globalStopKey': '全局停止键',
+  'workflows.runTimes': '执行',
+  'workflows.runTimesUnit': '次',
+  'workflows.infinite': '无限',
+  'workflows.running': '运行中',
+  'workflows.runCount': '第 {current} 次',
+  'workflows.confirmDelete': '确定要删除工作流「{name}」吗？',
 
   // Node Categories
   'category.sensor': '感知节点',

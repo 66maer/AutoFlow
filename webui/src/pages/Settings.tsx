@@ -22,35 +22,30 @@ export default function Settings() {
   const { t, locale, setLocale } = useI18n()
 
   return (
-    <>
-      <div className="page-header">
-        <h1>{t('settings.title')}</h1>
-      </div>
-      <div className="page-body">
-        <div className="settings-list">
-          {SETTINGS.map((item) => (
-            <div key={item.titleKey} className="settings-item">
-              <div className="settings-info">
-                <div className="settings-title">{t(item.titleKey as any)}</div>
-                <div className="settings-desc">{t(item.descKey as any)}</div>
-              </div>
-              <div className="settings-control">
-                {item.type === 'language' ? (
-                  <select
-                    value={locale}
-                    onChange={(e) => setLocale(e.target.value as Locale)}
-                  >
-                    <option value="zh-CN">中文</option>
-                    <option value="en-US">English</option>
-                  </select>
-                ) : (
-                  <span className="settings-placeholder">{t('common.comingSoon')}</span>
-                )}
-              </div>
+    <div className="settings-panel">
+      <div className="settings-list">
+        {SETTINGS.map((item) => (
+          <div key={item.titleKey} className="settings-item">
+            <div className="settings-info">
+              <div className="settings-title">{t(item.titleKey as any)}</div>
+              <div className="settings-desc">{t(item.descKey as any)}</div>
             </div>
-          ))}
-        </div>
+            <div className="settings-control">
+              {item.type === 'language' ? (
+                <select
+                  value={locale}
+                  onChange={(e) => setLocale(e.target.value as Locale)}
+                >
+                  <option value="zh-CN">中文</option>
+                  <option value="en-US">English</option>
+                </select>
+              ) : (
+                <span className="settings-placeholder">{t('common.comingSoon')}</span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
-    </>
+    </div>
   )
 }

@@ -2,8 +2,6 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import WorkflowList from './pages/WorkflowList'
 import WorkflowEditor from './pages/WorkflowEditor'
-import Logs from './pages/Logs'
-import Settings from './pages/Settings'
 
 export default function App() {
   return (
@@ -13,8 +11,6 @@ export default function App() {
           <Route path="/" element={<Navigate to="/workflows" replace />} />
           <Route path="/workflows" element={<WorkflowList />} />
           <Route path="/workflows/:id" element={<WorkflowEditor />} />
-          <Route path="/logs" element={<Logs />} />
-          <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>

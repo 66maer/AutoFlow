@@ -103,6 +103,7 @@ function WorkflowEditorInner() {
   const reactFlowInstance = useReactFlow()
 
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [repeatCount, setRepeatCount] = useState(1)
   const [repeatForever, setRepeatForever] = useState(false)
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
@@ -132,6 +133,7 @@ function WorkflowEditorInner() {
     if (!id) return
     api.get(id).then((wf) => {
       setName(wf.name)
+      setDescription(wf.description || '')
       setRepeatCount(wf.repeat_count ?? 1)
       setRepeatForever(wf.repeat_forever ?? false)
       const loaded: Node[] = (wf.nodes || []).map((n: Record<string, any>) => {
@@ -559,6 +561,7 @@ function WorkflowEditorInner() {
       })
       await api.update(id, {
         name,
+        description,
         nodes: saveNodes as any,
         edges: edges as any,
         repeat_count: repeatForever ? 0 : repeatCount,
@@ -591,7 +594,8 @@ function WorkflowEditorInner() {
           <button className="ghost" onClick={() => navigate('/workflows')}>
             {t('common.back')}
           </button>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('editor.namePlaceholder')} />
+          <input className="editor-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('editor.namePlaceholder')} />
+          <input className="editor-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('editor.descPlaceholder')} />
         </div>
         <div className="editor-actions">
           <div className="repeat-setting">

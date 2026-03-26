@@ -1,114 +1,283 @@
-.workflow-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-.workflow-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  cursor: pointer;
-  transition: box-shadow 0.2s;
-}
-
-.workflow-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-}
-
-.workflow-card-header {
+/* Workflow page */
+.wf-page {
+  min-height: 100vh;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+}
+
+/* Top bar */
+.wf-topbar {
+  height: var(--header-height);
+  padding: 0 32px;
+  display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  justify-content: space-between;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
-.workflow-card-header h3 {
-  font-size: 15px;
-  font-weight: 600;
+.wf-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
-.badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 12px;
+.wf-logo {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--primary);
+}
+
+.wf-new-btn {
+  border-radius: 20px;
+  padding: 6px 20px;
+  font-size: 13px;
   font-weight: 500;
 }
-.badge.enabled {
-  background: #d4edda;
-  color: #155724;
-}
-.badge.disabled {
-  background: #f0f0f0;
-  color: #888;
-}
 
-.workflow-desc {
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-}
-
-.workflow-meta {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-}
-
-/* Repeat controls on card */
-.workflow-repeat {
+.wf-topbar-right {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
-  padding: 8px 10px;
-  background: #f8f9fa;
-  border-radius: 6px;
-  border: 1px solid var(--border);
 }
 
-.repeat-checkbox-card {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.wf-stop-label {
   font-size: 12px;
   color: var(--text-muted);
-  cursor: pointer;
   white-space: nowrap;
 }
 
-.repeat-checkbox-card input[type="checkbox"] {
+.wf-stop-key {
+  max-width: 220px;
+}
+
+.wf-stop-key .key-recorder {
+  gap: 4px;
+}
+
+.wf-stop-key .key-manual-select {
+  display: none;
+}
+
+/* Body */
+.wf-body {
+  flex: 1;
+  padding: 32px;
+  overflow-y: auto;
+}
+
+.wf-empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 80px 0;
+  font-size: 15px;
+}
+
+/* Grid */
+.wf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* Card */
+.wf-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wf-card:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: var(--primary);
+}
+
+.wf-card--running {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary), 0 4px 16px rgba(108, 99, 255, 0.12);
+}
+
+/* Delete button — hidden, top right */
+.wf-card-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(230, 57, 70, 0.08);
+  color: var(--danger);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s;
+  padding: 0;
+  border: none;
   cursor: pointer;
 }
 
-.repeat-count-card {
+.wf-card:hover .wf-card-delete {
+  opacity: 1;
+}
+
+.wf-card-delete:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* Card header */
+.wf-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wf-card-name {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.wf-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Repeat controls */
+.wf-card-repeat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+}
+
+.wf-repeat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.wf-repeat-input {
+  width: 52px;
+  padding: 3px 6px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+
+.wf-repeat-input:focus {
+  border-color: var(--primary);
+}
+
+.wf-repeat-input:disabled {
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.wf-infinite-check {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 12px;
   color: var(--text-muted);
+  cursor: pointer;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
-.repeat-count-card input {
-  width: 52px;
-  padding: 2px 6px;
-  font-size: 12px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  outline: none;
-  text-align: center;
+.wf-infinite-check input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--primary);
 }
 
-.repeat-count-card input:focus {
-  border-color: var(--primary);
-}
-
-.workflow-actions {
+/* Card footer */
+.wf-card-footer {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wf-card-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.wf-card-actions {
+  display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.wf-running-badge {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: rgba(108, 99, 255, 0.1);
+  color: var(--primary);
+  font-weight: 500;
+  animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.wf-play-btn,
+.wf-stop-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.wf-play-btn {
+  background: var(--primary);
+  color: #fff;
+}
+
+.wf-play-btn:hover {
+  background: var(--primary-hover);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(108, 99, 255, 0.3);
+}
+
+.wf-stop-btn {
+  background: var(--danger);
+  color: #fff;
+}
+
+.wf-stop-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(230, 57, 70, 0.3);
 }
 
 .empty-hint {

@@ -4,22 +4,78 @@
   box-sizing: border-box;
 }
 
-:root {
-  --sidebar-width: 220px;
-  --header-height: 48px;
-  --bg: #f5f5f5;
-  --bg-dark: #1e1e2e;
-  --sidebar-bg: #2b2d42;
-  --sidebar-text: #edf2f4;
-  --primary: #6c63ff;
-  --primary-hover: #5a52d5;
-  --danger: #e63946;
-  --success: #2a9d8f;
-  --text: #333;
-  --text-muted: #888;
-  --border: #e0e0e0;
+/* ========== Light Theme ========== */
+:root,
+[data-theme="light"] {
+  --header-height: 56px;
+
+  /* Core palette from user: #DCB8CC #F08478 #647A73 #83CBBA #CCD9B4 #FCDBC5 */
+  --bg: #faf6f2;
+  --bg-surface: #FCDBC5;
   --card-bg: #fff;
-  --radius: 8px;
+  --primary: #83CBBA;
+  --primary-hover: #6bb8a5;
+  --primary-light: rgba(131, 203, 186, 0.12);
+  --danger: #F08478;
+  --danger-light: rgba(240, 132, 120, 0.1);
+  --success: #83CBBA;
+  --text: #647A73;
+  --text-muted: #9aaba3;
+  --border: #DCB8CC;
+  --border-light: #ecdfe6;
+  --accent: #CCD9B4;
+  --accent-hover: #b8c99e;
+
+  /* Node category colors */
+  --node-sensor: #e9c46a;
+  --node-action: #F08478;
+  --node-control: #83CBBA;
+
+  /* Corner buttons */
+  --corner-logs-bg: #647A73;
+  --corner-settings-bg: #83CBBA;
+  --corner-theme-bg: #DCB8CC;
+
+  /* Overlay */
+  --overlay-bg: rgba(100, 122, 115, 0.4);
+
+  /* Misc */
+  --shadow-sm: 0 2px 8px rgba(100, 122, 115, 0.08);
+  --shadow-md: 0 8px 32px rgba(100, 122, 115, 0.1);
+  --shadow-lg: 0 24px 64px rgba(100, 122, 115, 0.15);
+}
+
+/* ========== Dark Theme ========== */
+[data-theme="dark"] {
+  --bg: #1a1e1c;
+  --bg-surface: #252b28;
+  --card-bg: #2a302d;
+  --primary: #83CBBA;
+  --primary-hover: #9ad8ca;
+  --primary-light: rgba(131, 203, 186, 0.15);
+  --danger: #F08478;
+  --danger-light: rgba(240, 132, 120, 0.15);
+  --success: #83CBBA;
+  --text: #d4ddd8;
+  --text-muted: #8a9d95;
+  --border: #3d4a44;
+  --border-light: #333d38;
+  --accent: #CCD9B4;
+  --accent-hover: #b8c99e;
+
+  --node-sensor: #e9c46a;
+  --node-action: #F08478;
+  --node-control: #83CBBA;
+
+  --corner-logs-bg: #3d4a44;
+  --corner-settings-bg: #83CBBA;
+  --corner-theme-bg: #DCB8CC;
+
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.35);
 }
 
 body {
@@ -27,6 +83,7 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
 }
 
 a {
@@ -37,10 +94,10 @@ a {
 button {
   cursor: pointer;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 8px;
   padding: 8px 16px;
   font-size: 14px;
-  transition: background 0.2s;
+  transition: all 0.2s;
 }
 
 button.primary {
@@ -49,11 +106,16 @@ button.primary {
 }
 button.primary:hover {
   background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(131, 203, 186, 0.3);
 }
 
 button.danger {
   background: var(--danger);
   color: #fff;
+}
+button.danger:hover {
+  background: #e06f62;
 }
 
 button.ghost {
@@ -62,5 +124,67 @@ button.ghost {
   border: 1px solid var(--border);
 }
 button.ghost:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
   background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Confirm Dialog */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in 0.2s ease;
+}
+
+.confirm-dialog {
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 28px;
+  min-width: 320px;
+  max-width: 420px;
+  box-shadow: var(--shadow-lg);
+  animation: panel-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.confirm-message {
+  font-size: 15px;
+  line-height: 1.5;
+  margin-bottom: 24px;
+  color: var(--text);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.confirm-actions button {
+  padding: 8px 20px;
+  font-size: 13px;
+  border-radius: 8px;
 }
