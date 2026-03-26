@@ -15,6 +15,13 @@ wheels/
 # Database
 *.db
 
+# Runtime data
+data/
+
+# Claude Code
+.claude/
+CLAUDE.md
+
 # IDE
 .idea/
 .vscode/
