@@ -9,7 +9,9 @@
       "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "WebFetch(domain:www.flaticon.com)",
+      "Bash(npm run:*)"
     ]
   }
 }

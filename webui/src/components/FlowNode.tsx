@@ -2,6 +2,19 @@ import { Handle, Position } from '@xyflow/react'
 import type { NodeProps } from '@xyflow/react'
 import { useI18n } from '../i18n'
 import { templates } from '../api/client'
+import {
+  MagnifyingGlassIcon,
+  CursorArrowRaysIcon,
+  CommandLineIcon,
+  LinkIcon,
+  PencilIcon,
+  ClockIcon,
+  ArrowsRightLeftIcon,
+  ArrowPathIcon,
+  Cog6ToothIcon,
+  CheckIcon,
+} from '@heroicons/react/20/solid'
+import type { ComponentType, SVGProps } from 'react'
 
 /** Map nodeType → category for styling */
 function getNodeCategory(nodeType: string): string {
@@ -24,18 +37,18 @@ function getNodeCategory(nodeType: string): string {
   }
 }
 
-function getNodeIcon(nodeType: string): string {
+function getNodeIcon(nodeType: string): ComponentType<SVGProps<SVGSVGElement>> {
   switch (nodeType) {
-    case 'find_image': return '🔍'
-    case 'click': return '🖱️'
-    case 'key_press': return '⌨️'
-    case 'combo': return '🔗'
-    case 'type_text': return '✏️'
-    case 'wait': return '⏱️'
+    case 'find_image': return MagnifyingGlassIcon
+    case 'click': return CursorArrowRaysIcon
+    case 'key_press': return CommandLineIcon
+    case 'combo': return LinkIcon
+    case 'type_text': return PencilIcon
+    case 'wait': return ClockIcon
     case 'branch':
-    case 'condition': return '🔀'
-    case 'loop': return '🔄'
-    default: return '⚙️'
+    case 'condition': return ArrowsRightLeftIcon
+    case 'loop': return ArrowPathIcon
+    default: return Cog6ToothIcon
   }
 }
 
@@ -44,9 +57,10 @@ export default function FlowNode({ data, type }: NodeProps) {
   const nodeType = (data.nodeType as string) || type || 'click'
   const category = getNodeCategory(nodeType)
   const label = t(`node.${nodeType}` as any) || nodeType
-  const icon = getNodeIcon(nodeType)
+  const Icon = getNodeIcon(nodeType)
 
   const isBranch = nodeType === 'branch' || nodeType === 'condition'
+  const isLoop = nodeType === 'loop'
   const hasTimeout = nodeType === 'find_image' && data.timeout_enabled
 
   // Build detail text
@@ -121,7 +135,7 @@ export default function FlowNode({ data, type }: NodeProps) {
     <div className={`flow-node flow-node--${category} ${nodeType}`}>
       <Handle type="target" position={Position.Top} />
       <div className="node-header">
-        <span className="node-icon">{icon}</span>
+        <span className="node-icon"><Icon width={16} height={16} /></span>
         <span className="node-label">{label}</span>
       </div>
       {showThumbnail && (
@@ -138,14 +152,48 @@ export default function FlowNode({ data, type }: NodeProps) {
         <>
           <Handle type="source" position={Position.Bottom} id="true" style={{ left: '30%' }} />
           <Handle type="source" position={Position.Bottom} id="false" style={{ left: '70%' }} />
+          <div className="node-handle-labels">
+            <span className="handle-tag handle-tag--true" style={{ left: '30%' }} title={t('handle.branch.true')}>
+              {t('handle.branch.true.short')}
+            </span>
+            <span className="handle-tag handle-tag--false" style={{ left: '70%' }} title={t('handle.branch.false')}>
+              {t('handle.branch.false.short')}
+            </span>
+          </div>
+        </>
+      ) : isLoop ? (
+        <>
+          {/* Left handle: loop-back entry from body's last node */}
+          <Handle type="target" position={Position.Left} id="loop_back" />
+          <div className="node-handle-labels node-handle-labels--left">
+            <span className="handle-tag handle-tag--loop-back" title={t('handle.loop.back')}>
+              {t('handle.loop.back.short')}
+            </span>
+          </div>
+          {/* Bottom: body output */}
+          <Handle type="source" position={Position.Bottom} id="body" style={{ left: '35%' }} />
+          {/* Bottom-right: done/exit */}
+          <Handle type="source" position={Position.Bottom} id="done" style={{ left: '70%' }} />
+          <div className="node-handle-labels">
+            <span className="handle-tag handle-tag--body" style={{ left: '35%' }} title={t('handle.loop.body')}>
+              {t('handle.loop.body.short')}
+            </span>
+            <span className="handle-tag handle-tag--done" style={{ left: '70%' }} title={t('handle.loop.done')}>
+              {t('handle.loop.done.short')}
+            </span>
+          </div>
         </>
       ) : hasTimeout ? (
         <>
           <Handle type="source" position={Position.Bottom} id="success" style={{ left: '30%' }} />
           <Handle type="source" position={Position.Bottom} id="timeout" style={{ left: '70%' }} />
           <div className="node-handle-labels">
-            <span style={{ left: '30%' }}>✓</span>
-            <span style={{ left: '70%' }}>⏱</span>
+            <span className="handle-tag handle-tag--success" style={{ left: '30%' }} title={t('handle.timeout.success')}>
+              <CheckIcon width={10} height={10} />
+            </span>
+            <span className="handle-tag handle-tag--timeout" style={{ left: '70%' }} title={t('handle.timeout.timeout')}>
+              <ClockIcon width={10} height={10} />
+            </span>
           </div>
         </>
       ) : (

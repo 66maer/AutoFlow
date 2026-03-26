@@ -338,6 +338,35 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
         </>
       )}
 
+      {/* ===== BRANCH ===== */}
+      {(nodeType === 'branch' || nodeType === 'condition') && (
+        <>
+          <div className="config-field">
+            <label>{t('config.branchCondition')}</label>
+            <select
+              value={String(node.data.condition || 'last_match')}
+              onChange={(e) => update('condition', e.target.value)}
+            >
+              <option value="last_match">{t('config.branchCondition.lastMatch')}</option>
+              <option value="variable">{t('config.branchCondition.variable')}</option>
+            </select>
+          </div>
+          {node.data.condition === 'variable' && (
+            <div className="config-field">
+              <label>{t('config.branchVariable')}</label>
+              <input
+                value={String(node.data.variable_name || '')}
+                onChange={(e) => update('variable_name', e.target.value)}
+                placeholder={t('config.branchVariable.placeholder')}
+              />
+            </div>
+          )}
+          <div className="config-hint">
+            {t('config.branchHint')}
+          </div>
+        </>
+      )}
+
       {/* ===== LOOP ===== */}
       {nodeType === 'loop' && (
         <>
@@ -357,6 +386,9 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
               <input type="number" value={String(node.data.max_iterations ?? 10)} min="1" onChange={(e) => update('max_iterations', Number(e.target.value))} />
             </div>
           )}
+          <div className="config-hint">
+            {t('config.loopHint')}
+          </div>
         </>
       )}
     </div>

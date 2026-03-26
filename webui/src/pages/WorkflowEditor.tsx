@@ -96,6 +96,40 @@ interface CtxMenuState {
   items: MenuEntry[]
 }
 
+/** Detect if adding an edge from source→target would create a cycle (DFS).
+ *  Cycles are allowed only when connecting to a loop node's loop_back handle. */
+function wouldCreateCycle(
+  sourceId: string,
+  targetId: string,
+  targetHandle: string | null | undefined,
+  edges: Edge[],
+  nodes: Node[],
+): boolean {
+  // Allow cycle when connecting to a loop node's loop_back handle
+  const targetNode = nodes.find((n) => n.id === targetId)
+  if (targetNode && (targetNode.data as any).nodeType === 'loop' && targetHandle === 'loop_back') return false
+
+  // DFS: can we reach sourceId starting from targetId by following existing edges?
+  const adj = new Map<string, string[]>()
+  for (const e of edges) {
+    if (!adj.has(e.source)) adj.set(e.source, [])
+    adj.get(e.source)!.push(e.target)
+  }
+
+  const visited = new Set<string>()
+  const stack = [targetId]
+  while (stack.length > 0) {
+    const cur = stack.pop()!
+    if (cur === sourceId) return true
+    if (visited.has(cur)) continue
+    visited.add(cur)
+    for (const next of adj.get(cur) || []) {
+      stack.push(next)
+    }
+  }
+  return false
+}
+
 function WorkflowEditorInner() {
   const { t } = useI18n()
   const { id } = useParams<{ id: string }>()
@@ -182,6 +216,11 @@ function WorkflowEditorInner() {
 
   const onConnect = useCallback(
     (conn: Connection) => {
+      if (!conn.source || !conn.target) return
+      // Prevent self-loops
+      if (conn.source === conn.target) return
+      // Prevent cycles (except connecting to loop node's loop_back handle)
+      if (wouldCreateCycle(conn.source, conn.target, conn.targetHandle, edgesRef.current, nodesRef.current)) return
       pushSnapshot()
       setEdges((eds) => addEdge(conn, eds))
     },
@@ -212,73 +251,79 @@ function WorkflowEditorInner() {
   // ---- Add node ----
   const addNode = useCallback((nodeType: string, position?: { x: number; y: number }) => {
     pushSnapshot()
-    setNodes((currentNodes) => {
-      const lastNode = currentNodes.length > 0
-        ? currentNodes.reduce((a, b) =>
-            (a.position.y > b.position.y) ? a : (a.position.y === b.position.y && a.position.x >= b.position.x) ? a : b
-          )
-        : null
+    const currentNodes = nodesRef.current
+    const lastNode = currentNodes.length > 0
+      ? currentNodes.reduce((a, b) =>
+          (a.position.y > b.position.y) ? a : (a.position.y === b.position.y && a.position.x >= b.position.x) ? a : b
+        )
+      : null
 
-      const newPosition = position
-        ? position
-        : lastNode
-          ? { x: lastNode.position.x, y: lastNode.position.y + NODE_SPACING_Y }
-          : { x: 250, y: 80 }
+    const newPosition = position
+      ? position
+      : lastNode
+        ? { x: lastNode.position.x, y: lastNode.position.y + NODE_SPACING_Y }
+        : { x: 250, y: 80 }
 
-      const defaultData: Record<string, unknown> = { nodeType, ...DEFAULT_DATA_MAP[nodeType] }
+    const defaultData: Record<string, unknown> = { nodeType, ...DEFAULT_DATA_MAP[nodeType] }
 
-      const newNode: Node = {
-        id: `${nodeType}_${Date.now()}`,
-        type: 'custom',
-        position: newPosition,
-        data: defaultData,
+    const newNode: Node = {
+      id: `${nodeType}_${Date.now()}`,
+      type: 'custom',
+      position: newPosition,
+      data: defaultData,
+    }
+
+    setNodes((nds) => [...nds, newNode])
+
+    if (lastNode && !position) {
+      const newEdge: Edge = {
+        id: `e_${lastNode.id}_${newNode.id}`,
+        source: lastNode.id,
+        target: newNode.id,
       }
-
-      if (lastNode && !position) {
-        const newEdge: Edge = {
-          id: `e_${lastNode.id}_${newNode.id}`,
-          source: lastNode.id,
-          target: newNode.id,
-        }
-        setEdges((eds) => [...eds, newEdge])
-      }
-
-      return [...currentNodes, newNode]
-    })
+      setEdges((eds) => [...eds, newEdge])
+    }
   }, [pushSnapshot, setNodes, setEdges])
 
   /** Add a node after a specific source node */
   const addNodeAfter = useCallback((sourceNodeId: string, nodeType: string) => {
     pushSnapshot()
-    setNodes((currentNodes) => {
-      const source = currentNodes.find((n) => n.id === sourceNodeId)
-      if (!source) return currentNodes
+    const source = nodesRef.current.find((n) => n.id === sourceNodeId)
+    if (!source) return
 
-      const newPosition = { x: source.position.x, y: source.position.y + NODE_SPACING_Y }
-      const defaultData: Record<string, unknown> = { nodeType, ...DEFAULT_DATA_MAP[nodeType] }
+    const newPosition = { x: source.position.x, y: source.position.y + NODE_SPACING_Y }
+    const defaultData: Record<string, unknown> = { nodeType, ...DEFAULT_DATA_MAP[nodeType] }
 
-      const newNode: Node = {
-        id: `${nodeType}_${Date.now()}`,
-        type: 'custom',
-        position: newPosition,
-        data: defaultData,
-      }
+    const newNode: Node = {
+      id: `${nodeType}_${Date.now()}`,
+      type: 'custom',
+      position: newPosition,
+      data: defaultData,
+    }
 
-      const newEdge: Edge = {
-        id: `e_${sourceNodeId}_${newNode.id}`,
-        source: sourceNodeId,
-        target: newNode.id,
-      }
-      setEdges((eds) => [...eds, newEdge])
+    setNodes((nds) => [...nds, newNode])
 
-      return [...currentNodes, newNode]
-    })
+    const newEdge: Edge = {
+      id: `e_${sourceNodeId}_${newNode.id}`,
+      source: sourceNodeId,
+      target: newNode.id,
+    }
+    setEdges((eds) => [...eds, newEdge])
   }, [pushSnapshot, setNodes, setEdges])
 
-  // ---- Delete selected ----
+  // ---- Delete selected (nodes + edges) ----
   const deleteSelected = useCallback(() => {
-    const selected = nodesRef.current.filter((n) => n.selected)
-    if (selected.length === 0 && selectedNode) {
+    const selectedNodes = nodesRef.current.filter((n) => n.selected)
+    const selectedEdges = edgesRef.current.filter((e) => e.selected)
+
+    // If we have selected edges, delete them
+    if (selectedEdges.length > 0) {
+      pushSnapshot()
+      const edgeIds = new Set(selectedEdges.map((e) => e.id))
+      setEdges((eds) => eds.filter((e) => !edgeIds.has(e.id)))
+    }
+
+    if (selectedNodes.length === 0 && selectedNode) {
       // Delete the panel-selected node
       pushSnapshot()
       setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id))
@@ -286,12 +331,14 @@ function WorkflowEditorInner() {
       setSelectedNode(null)
       return
     }
-    if (selected.length === 0) return
-    pushSnapshot()
-    const ids = new Set(selected.map((n) => n.id))
-    setNodes((nds) => nds.filter((n) => !ids.has(n.id)))
-    setEdges((eds) => eds.filter((e) => !ids.has(e.source) && !ids.has(e.target)))
-    setSelectedNode(null)
+    if (selectedNodes.length === 0 && selectedEdges.length === 0) return
+    if (selectedNodes.length > 0) {
+      pushSnapshot()
+      const ids = new Set(selectedNodes.map((n) => n.id))
+      setNodes((nds) => nds.filter((n) => !ids.has(n.id)))
+      setEdges((eds) => eds.filter((e) => !ids.has(e.source) && !ids.has(e.target)))
+      setSelectedNode(null)
+    }
   }, [selectedNode, pushSnapshot, setNodes, setEdges])
 
   // ---- Clipboard ----
@@ -517,6 +564,25 @@ function WorkflowEditorInner() {
     [t, copySelected, cutSelected, pushSnapshot, setNodes, setEdges, addNodeAfter],
   )
 
+  const onEdgeContextMenu = useCallback(
+    (e: React.MouseEvent, edge: Edge) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      const items: MenuEntry[] = [
+        {
+          label: t('ctx.delete'), shortcut: 'Del', onClick: () => {
+            pushSnapshot()
+            setEdges((eds) => eds.filter((ed) => ed.id !== edge.id))
+          },
+        },
+      ]
+
+      setCtxMenu({ x: e.clientX, y: e.clientY, items })
+    },
+    [t, pushSnapshot, setEdges],
+  )
+
   const onPaneContextMenu = useCallback(
     (e: React.MouseEvent | MouseEvent) => {
       e.preventDefault()
@@ -659,6 +725,7 @@ function WorkflowEditorInner() {
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
           onNodeContextMenu={onNodeContextMenu}
+          onEdgeContextMenu={onEdgeContextMenu}
           onPaneContextMenu={onPaneContextMenu}
           onDrop={onDrop}
           onDragOver={onDragOver}
@@ -672,6 +739,9 @@ function WorkflowEditorInner() {
           panOnScroll={false}
           /* Zoom: scroll wheel */
           zoomOnScroll={true}
+          /* Allow selecting edges by clicking */
+          edgesFocusable={true}
+          edgesReconnectable={true}
           /* Disable default delete key (we handle it ourselves) */
           deleteKeyCode={null}
           multiSelectionKeyCode="Control"

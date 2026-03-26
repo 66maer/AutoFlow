@@ -109,6 +109,15 @@ const zhCN = {
   'config.loopMode.count': '固定次数',
   'config.loopMode.infinite': '无限循环',
   'config.loopCount': '循环次数',
+  'config.loopHint': '↻ 循环体：连接需要重复执行的节点。循环体末端节点可连回此循环节点。\n→ 完成：循环结束后执行的节点。',
+
+  // Branch Config
+  'config.branchCondition': '判断条件',
+  'config.branchCondition.lastMatch': '上次找图结果',
+  'config.branchCondition.variable': '变量值',
+  'config.branchVariable': '变量名',
+  'config.branchVariable.placeholder': '输入变量名',
+  'config.branchHint': '✓ 条件为真时走左侧输出\n✗ 条件为假时走右侧输出',
 
   // Key Recorder
   'config.keyRecorder.placeholder': '点击录制按键',
@@ -131,6 +140,20 @@ const zhCN = {
   'template.selectFile': '选择图片',
   'template.replace': '更换图片',
   'template.uploading': '上传中...',
+
+  // Handle tooltips
+  'handle.branch.true': '条件为真时走此路径',
+  'handle.branch.true.short': '是',
+  'handle.branch.false': '条件为假时走此路径',
+  'handle.branch.false.short': '否',
+  'handle.loop.body': '循环体：连接每次迭代执行的节点',
+  'handle.loop.body.short': '循环',
+  'handle.loop.done': '完成：循环结束后执行的节点',
+  'handle.loop.done.short': '完成',
+  'handle.loop.back': '回环：循环体末尾节点连接到此处',
+  'handle.loop.back.short': '回环',
+  'handle.timeout.success': '匹配成功时走此路径',
+  'handle.timeout.timeout': '超时后走此路径',
 
   // Context Menu
   'ctx.copy': '复制',

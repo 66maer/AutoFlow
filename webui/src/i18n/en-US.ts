@@ -109,6 +109,15 @@ const enUS = {
   'config.loopMode.count': 'Fixed Count',
   'config.loopMode.infinite': 'Infinite',
   'config.loopCount': 'Loop Count',
+  'config.loopHint': 'Body: connect nodes to repeat each iteration. Last body node can loop back to this node.\nDone: node to execute after loop finishes.',
+
+  // Branch Config
+  'config.branchCondition': 'Condition',
+  'config.branchCondition.lastMatch': 'Last Find Image Result',
+  'config.branchCondition.variable': 'Variable Value',
+  'config.branchVariable': 'Variable Name',
+  'config.branchVariable.placeholder': 'Enter variable name',
+  'config.branchHint': 'True: left output when condition is met.\nFalse: right output when condition is not met.',
 
   // Key Recorder
   'config.keyRecorder.placeholder': 'Click to record key',
@@ -131,6 +140,20 @@ const enUS = {
   'template.selectFile': 'Select Image',
   'template.replace': 'Replace Image',
   'template.uploading': 'Uploading...',
+
+  // Handle tooltips
+  'handle.branch.true': 'Path when condition is true',
+  'handle.branch.true.short': 'Yes',
+  'handle.branch.false': 'Path when condition is false',
+  'handle.branch.false.short': 'No',
+  'handle.loop.body': 'Loop body: connect nodes to execute each iteration',
+  'handle.loop.body.short': 'Body',
+  'handle.loop.done': 'Done: node to execute after loop finishes',
+  'handle.loop.done.short': 'Done',
+  'handle.loop.back': 'Loop back: connect the last body node here',
+  'handle.loop.back.short': 'Back',
+  'handle.timeout.success': 'Path when image is found',
+  'handle.timeout.timeout': 'Path when timeout is reached',
 
   // Context Menu
   'ctx.copy': 'Copy',

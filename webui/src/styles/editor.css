@@ -127,7 +127,7 @@
 .flow-node--action { border-color: #e76f51; }
 .flow-node--control { border-color: #6c63ff; }
 .flow-node--control.branch { border-style: dashed; }
-.flow-node--control.loop { border-width: 3px; }
+.flow-node--control.loop { border-width: 3px; position: relative; }
 
 .flow-node .node-header {
   display: flex;
@@ -138,8 +138,8 @@
 }
 
 .flow-node .node-icon {
-  font-size: 14px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
 }
 
 .flow-node .node-label {
@@ -171,12 +171,10 @@
   word-break: break-all;
 }
 
-/* Handle labels (for timeout / branch indicators) */
+/* Handle labels (for timeout / branch / loop indicators) */
 .flow-node .node-handle-labels {
   position: relative;
   height: 0;
-  font-size: 9px;
-  color: var(--text-muted);
   pointer-events: none;
 }
 
@@ -184,6 +182,75 @@
   position: absolute;
   transform: translateX(-50%);
   top: 4px;
+}
+
+/* Left-side handle labels (for loop back) */
+.flow-node .node-handle-labels--left {
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: auto;
+  width: 0;
+}
+
+.flow-node .node-handle-labels--left span {
+  position: absolute;
+  left: auto;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+/* Handle tags — small pill labels near handles */
+.handle-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 3px;
+  pointer-events: auto;
+  cursor: default;
+  user-select: none;
+}
+
+.handle-tag--true {
+  background: #d4edda;
+  color: #155724;
+}
+
+.handle-tag--false {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.handle-tag--body {
+  background: #e0d4f5;
+  color: #4a2d8a;
+}
+
+.handle-tag--done {
+  background: #d4e8f5;
+  color: #1a4a6e;
+}
+
+.handle-tag--loop-back {
+  background: #e0d4f5;
+  color: #4a2d8a;
+}
+
+.handle-tag--success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.handle-tag--timeout {
+  background: #fff3cd;
+  color: #856404;
 }
 
 /* Node config panel */
@@ -246,6 +313,18 @@
   display: block;
   object-fit: contain;
   max-height: 160px;
+}
+
+/* Config hint */
+.config-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: #f8f8fc;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+  line-height: 1.5;
 }
 
 /* Config separator */
@@ -433,6 +512,22 @@
 /* Selected node highlight */
 .react-flow__node.selected .flow-node {
   box-shadow: 0 0 0 2px var(--primary);
+}
+
+/* Edge styles */
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--primary);
+  stroke-width: 3;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--primary);
+  stroke-width: 2.5;
+  cursor: pointer;
 }
 
 /* Key Recorder */
