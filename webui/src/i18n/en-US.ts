@@ -47,6 +47,7 @@ const enUS = {
   'category.control': 'Control',
 
   // Node Types
+  'node.capture': 'Capture',
   'node.find_image': 'Find Image',
   'node.click': 'Click',
   'node.key_press': 'Key Press',
@@ -66,6 +67,8 @@ const enUS = {
   'node.wait.detail': 'Wait {ms}ms',
   'node.loop.detail': 'Max {max} times',
   'node.loop.infinite': 'Infinite loop',
+  'node.capture.fullscreen': 'Full screen',
+  'node.capture.region': 'Region',
   'node.combo': 'Combo Action',
   'node.combo.steps': '{count} steps',
   'node.click.left': 'Left',
@@ -109,15 +112,30 @@ const enUS = {
   'config.loopMode.count': 'Fixed Count',
   'config.loopMode.infinite': 'Infinite',
   'config.loopCount': 'Loop Count',
-  'config.loopHint': 'Body: connect nodes to repeat each iteration. Last body node can loop back to this node.\nDone: node to execute after loop finishes.',
+  'config.loopMode.condition': 'While Condition',
+  'config.loopMaxSafety': 'Safety limit (prevent infinite)',
+  'config.loopHint': 'Body: connect nodes from the bottom-left output; loop back via the left input.\nDone: bottom-right output runs after loop ends.',
+
+  // Capture Config
+  'config.captureMode': 'Capture Mode',
+  'config.captureMode.fullscreen': 'Full Screen',
+  'config.captureMode.region': 'Region',
+  'config.width': 'Width',
+  'config.height': 'Height',
 
   // Branch Config
-  'config.branchCondition': 'Condition',
-  'config.branchCondition.lastMatch': 'Last Find Image Result',
-  'config.branchCondition.variable': 'Variable Value',
-  'config.branchVariable': 'Variable Name',
-  'config.branchVariable.placeholder': 'Enter variable name',
-  'config.branchHint': 'True: left output when condition is met.\nFalse: right output when condition is not met.',
+  'config.branch.variable': 'Variable',
+  'config.branch.selectVar': '-- Select variable --',
+  'config.branch.operator': 'Operator',
+  'config.branch.value': 'Value',
+  'config.branch.noVars': 'No upstream variables found. Set "Save to variable" on Find Image / Capture nodes.',
+  'config.branchHint': 'Green output: condition is true\nRed output: condition is false',
+
+  // Variable types
+  'config.varType.boolean': 'bool',
+  'config.varType.number': 'number',
+  'config.varType.string': 'string',
+  'config.varType.image': 'image',
 
   // Key Recorder
   'config.keyRecorder.placeholder': 'Click to record key',

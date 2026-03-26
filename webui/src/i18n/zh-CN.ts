@@ -47,6 +47,7 @@ const zhCN = {
   'category.control': '控制节点',
 
   // Node Types
+  'node.capture': '截图',
   'node.find_image': '找图',
   'node.click': '点击',
   'node.key_press': '按键',
@@ -66,6 +67,8 @@ const zhCN = {
   'node.wait.detail': '等待 {ms}ms',
   'node.loop.detail': '最多 {max} 次',
   'node.loop.infinite': '无限循环',
+  'node.capture.fullscreen': '全屏截图',
+  'node.capture.region': '区域截图',
   'node.combo': '组合动作',
   'node.combo.steps': '{count} 个步骤',
   'node.click.left': '左键',
@@ -109,15 +112,30 @@ const zhCN = {
   'config.loopMode.count': '固定次数',
   'config.loopMode.infinite': '无限循环',
   'config.loopCount': '循环次数',
-  'config.loopHint': '↻ 循环体：连接需要重复执行的节点。循环体末端节点可连回此循环节点。\n→ 完成：循环结束后执行的节点。',
+  'config.loopMode.condition': '条件循环',
+  'config.loopMaxSafety': '安全上限（防死循环）',
+  'config.loopHint': '循环体：从底部左侧出口连接节点，末尾连回左侧回环入口。\n完成：底部右侧出口连接循环结束后的节点。',
+
+  // Capture Config
+  'config.captureMode': '截图方式',
+  'config.captureMode.fullscreen': '全屏',
+  'config.captureMode.region': '指定区域',
+  'config.width': '宽度',
+  'config.height': '高度',
 
   // Branch Config
-  'config.branchCondition': '判断条件',
-  'config.branchCondition.lastMatch': '上次找图结果',
-  'config.branchCondition.variable': '变量值',
-  'config.branchVariable': '变量名',
-  'config.branchVariable.placeholder': '输入变量名',
-  'config.branchHint': '✓ 条件为真时走左侧输出\n✗ 条件为假时走右侧输出',
+  'config.branch.variable': '变量',
+  'config.branch.selectVar': '-- 选择变量 --',
+  'config.branch.operator': '运算符',
+  'config.branch.value': '比较值',
+  'config.branch.noVars': '上游节点未设置变量（在找图/截图节点的"结果保存到变量"中设置）',
+  'config.branchHint': '绿色出口：条件为真\n红色出口：条件为假',
+
+  // Variable types
+  'config.varType.boolean': '布尔',
+  'config.varType.number': '数值',
+  'config.varType.string': '文本',
+  'config.varType.image': '图像',
 
   // Key Recorder
   'config.keyRecorder.placeholder': '点击录制按键',

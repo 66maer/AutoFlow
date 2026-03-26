@@ -171,87 +171,20 @@
   word-break: break-all;
 }
 
-/* Handle labels (for timeout / branch / loop indicators) */
-.flow-node .node-handle-labels {
-  position: relative;
-  height: 0;
-  pointer-events: none;
+/* Colored handle dots — override default ReactFlow handle style */
+.handle-dot.react-flow__handle {
+  width: 10px;
+  height: 10px;
+  border-width: 2px;
 }
 
-.flow-node .node-handle-labels span {
-  position: absolute;
-  transform: translateX(-50%);
-  top: 4px;
-}
-
-/* Left-side handle labels (for loop back) */
-.flow-node .node-handle-labels--left {
-  position: absolute;
-  left: -6px;
-  top: 50%;
-  transform: translateY(-50%);
-  height: auto;
-  width: 0;
-}
-
-.flow-node .node-handle-labels--left span {
-  position: absolute;
-  left: auto;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  white-space: nowrap;
-}
-
-/* Handle tags — small pill labels near handles */
-.handle-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1;
-  padding: 1px 4px;
-  border-radius: 3px;
-  pointer-events: auto;
-  cursor: default;
-  user-select: none;
-}
-
-.handle-tag--true {
-  background: #d4edda;
-  color: #155724;
-}
-
-.handle-tag--false {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.handle-tag--body {
-  background: #e0d4f5;
-  color: #4a2d8a;
-}
-
-.handle-tag--done {
-  background: #d4e8f5;
-  color: #1a4a6e;
-}
-
-.handle-tag--loop-back {
-  background: #e0d4f5;
-  color: #4a2d8a;
-}
-
-.handle-tag--success {
-  background: #d4edda;
-  color: #155724;
-}
-
-.handle-tag--timeout {
-  background: #fff3cd;
-  color: #856404;
-}
+.handle-dot--true    { background: #28a745; border-color: #1e7e34; }
+.handle-dot--false   { background: #dc3545; border-color: #bd2130; }
+.handle-dot--body    { background: #6c63ff; border-color: #5a52d5; }
+.handle-dot--done    { background: #17a2b8; border-color: #117a8b; }
+.handle-dot--loop-back { background: #6c63ff; border-color: #5a52d5; }
+.handle-dot--success { background: #28a745; border-color: #1e7e34; }
+.handle-dot--timeout { background: #ffc107; border-color: #d39e00; }
 
 /* Node config panel */
 .node-config-panel {
@@ -711,4 +644,21 @@
   width: 100%;
   font-size: 12px;
   padding: 5px;
+}
+
+/* Condition expression builder */
+.condition-expr {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 10px;
+  background: #fafafa;
+}
+
+.condition-expr .config-field {
+  margin-bottom: 6px;
+}
+
+.condition-expr .config-field:last-child {
+  margin-bottom: 0;
 }

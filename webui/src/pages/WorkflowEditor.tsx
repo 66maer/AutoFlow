@@ -41,6 +41,7 @@ const NODE_CATEGORIES: NodeCategory[] = [
   {
     key: 'sensor',
     presets: [
+      { nodeType: 'capture', defaultData: { capture_mode: 'fullscreen' } },
       { nodeType: 'find_image', defaultData: { confidence: 0.8 } },
     ],
   },
@@ -80,13 +81,14 @@ const NODE_SPACING_Y = 100
 
 /** Quick-add rules: right-clicking a node shows "add after" options */
 const QUICK_ADD_MAP: Record<string, string[]> = {
+  capture: ['find_image', 'click', 'branch'],
   find_image: ['click', 'branch', 'wait'],
   click: ['wait', 'find_image', 'key_press'],
   key_press: ['wait', 'type_text'],
   type_text: ['wait', 'key_press'],
-  wait: ['find_image', 'click'],
+  wait: ['find_image', 'click', 'capture'],
   combo: ['find_image', 'wait', 'click'],
-  branch: ['find_image', 'click'],
+  branch: ['find_image', 'click', 'capture'],
   loop: ['find_image', 'click', 'wait'],
 }
 
@@ -762,6 +764,8 @@ function WorkflowEditorInner() {
         {selectedNode && (
           <NodeConfigPanel
             node={selectedNode}
+            nodes={nodes}
+            edges={edges}
             onChange={handleNodeDataChange}
             onClose={() => setSelectedNode(null)}
             onDelete={handleDeleteNode}

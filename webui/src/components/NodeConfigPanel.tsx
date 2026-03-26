@@ -1,11 +1,14 @@
-import { useCallback } from 'react'
-import type { Node } from '@xyflow/react'
+import { useCallback, useMemo } from 'react'
+import type { Node, Edge } from '@xyflow/react'
 import { useI18n } from '../i18n'
 import TemplatePicker from './TemplatePicker'
 import KeyRecorder from './KeyRecorder'
+import { getUpstreamVariables, OPERATORS_FOR_TYPE, type VarField } from '../utils/variables'
 
 interface Props {
   node: Node
+  nodes: Node[]
+  edges: Edge[]
   onChange: (id: string, data: Record<string, unknown>) => void
   onClose: () => void
   onDelete?: () => void
@@ -23,7 +26,7 @@ interface ComboStep {
 
 const COMBO_ACTIONS = ['key_down', 'key_up', 'click', 'wait', 'type_text'] as const
 
-export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: Props) {
+export default function NodeConfigPanel({ node, nodes, edges, onChange, onClose, onDelete }: Props) {
   const { t } = useI18n()
   const nodeType = (node.data.nodeType as string) || node.type || ''
 
@@ -32,6 +35,12 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
   }
 
   const label = t(`node.${nodeType}` as any) || nodeType
+
+  // Available upstream variables for this node
+  const upstreamVars = useMemo(
+    () => getUpstreamVariables(node.id, nodes, edges),
+    [node.id, nodes, edges],
+  )
 
   // Combo step helpers
   const steps = ((node.data.steps as ComboStep[]) || []) as ComboStep[]
@@ -71,6 +80,13 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
     },
     [node, steps, onChange],
   )
+
+  // Get operators for the currently selected variable in branch/loop
+  const getOpsForVar = (varPath: string): { value: string; label: string }[] => {
+    const v = upstreamVars.find((f) => f.path === varPath)
+    const vType = v?.type || 'boolean'
+    return OPERATORS_FOR_TYPE[vType] || OPERATORS_FOR_TYPE['boolean']
+  }
 
   return (
     <div className="node-config-panel">
@@ -190,7 +206,6 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
           <KeyRecorder
             value={String(node.data.keys || node.data.key || '')}
             onChange={(keys) => {
-              // Store in 'keys' field (new format), clear legacy 'key'
               onChange(node.id, { ...node.data, keys, key: undefined })
             }}
           />
@@ -226,7 +241,7 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
           </div>
           <div className="config-field">
             <label>{t('config.saveToVar')}</label>
-            <input value={String(node.data.save_to || '')} onChange={(e) => update('save_to', e.target.value)} />
+            <input value={String(node.data.save_to || '')} onChange={(e) => update('save_to', e.target.value)} placeholder="match1" />
           </div>
 
           <div className="config-separator" />
@@ -253,6 +268,50 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
         </>
       )}
 
+      {/* ===== CAPTURE (screenshot) ===== */}
+      {nodeType === 'capture' && (
+        <>
+          <div className="config-field">
+            <label>{t('config.captureMode')}</label>
+            <select
+              value={String(node.data.capture_mode || 'fullscreen')}
+              onChange={(e) => update('capture_mode', e.target.value)}
+            >
+              <option value="fullscreen">{t('config.captureMode.fullscreen')}</option>
+              <option value="region">{t('config.captureMode.region')}</option>
+            </select>
+          </div>
+          {node.data.capture_mode === 'region' && (
+            <>
+              <div className="config-row">
+                <div className="config-field">
+                  <label>{t('config.x')}</label>
+                  <input type="number" value={String(node.data.region_x ?? 0)} min="0" onChange={(e) => update('region_x', Number(e.target.value))} />
+                </div>
+                <div className="config-field">
+                  <label>{t('config.y')}</label>
+                  <input type="number" value={String(node.data.region_y ?? 0)} min="0" onChange={(e) => update('region_y', Number(e.target.value))} />
+                </div>
+              </div>
+              <div className="config-row">
+                <div className="config-field">
+                  <label>{t('config.width')}</label>
+                  <input type="number" value={String(node.data.region_w ?? 100)} min="1" onChange={(e) => update('region_w', Number(e.target.value))} />
+                </div>
+                <div className="config-field">
+                  <label>{t('config.height')}</label>
+                  <input type="number" value={String(node.data.region_h ?? 100)} min="1" onChange={(e) => update('region_h', Number(e.target.value))} />
+                </div>
+              </div>
+            </>
+          )}
+          <div className="config-field">
+            <label>{t('config.saveToVar')}</label>
+            <input value={String(node.data.save_to || '')} onChange={(e) => update('save_to', e.target.value)} placeholder="screen1" />
+          </div>
+        </>
+      )}
+
       {/* ===== COMBO ACTION ===== */}
       {nodeType === 'combo' && (
         <>
@@ -275,7 +334,6 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
                   </div>
                 </div>
 
-                {/* Step-specific config */}
                 {(step.action === 'key_down' || step.action === 'key_up') && (
                   <div className="combo-step-body">
                     <KeyRecorder
@@ -338,30 +396,28 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
         </>
       )}
 
-      {/* ===== BRANCH ===== */}
+      {/* ===== BRANCH / CONDITION — expression builder ===== */}
       {(nodeType === 'branch' || nodeType === 'condition') && (
         <>
-          <div className="config-field">
-            <label>{t('config.branchCondition')}</label>
-            <select
-              value={String(node.data.condition || 'last_match')}
-              onChange={(e) => update('condition', e.target.value)}
-            >
-              <option value="last_match">{t('config.branchCondition.lastMatch')}</option>
-              <option value="variable">{t('config.branchCondition.variable')}</option>
-            </select>
-          </div>
-          {node.data.condition === 'variable' && (
-            <div className="config-field">
-              <label>{t('config.branchVariable')}</label>
-              <input
-                value={String(node.data.variable_name || '')}
-                onChange={(e) => update('variable_name', e.target.value)}
-                placeholder={t('config.branchVariable.placeholder')}
-              />
-            </div>
+          {upstreamVars.length > 0 ? (
+            <ConditionExprBuilder
+              varPath={String(node.data.cond_var || '')}
+              operator={String(node.data.cond_op || '==')}
+              value={String(node.data.cond_value ?? '')}
+              vars={upstreamVars}
+              onVarChange={(v) => {
+                // When variable changes, reset operator to first valid one
+                const ops = OPERATORS_FOR_TYPE[upstreamVars.find(f => f.path === v)?.type || 'boolean'] || OPERATORS_FOR_TYPE['boolean']
+                onChange(node.id, { ...node.data, cond_var: v, cond_op: ops[0]?.value || '==', cond_value: '' })
+              }}
+              onOpChange={(op) => update('cond_op', op)}
+              onValueChange={(val) => update('cond_value', val)}
+              getOpsForVar={getOpsForVar}
+            />
+          ) : (
+            <div className="config-hint">{t('config.branch.noVars')}</div>
           )}
-          <div className="config-hint">
+          <div className="config-hint" style={{ whiteSpace: 'pre-line' }}>
             {t('config.branchHint')}
           </div>
         </>
@@ -378,6 +434,7 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
             >
               <option value="count">{t('config.loopMode.count')}</option>
               <option value="infinite">{t('config.loopMode.infinite')}</option>
+              <option value="condition">{t('config.loopMode.condition')}</option>
             </select>
           </div>
           {(node.data.loop_mode || 'count') === 'count' && (
@@ -386,10 +443,102 @@ export default function NodeConfigPanel({ node, onChange, onClose, onDelete }: P
               <input type="number" value={String(node.data.max_iterations ?? 10)} min="1" onChange={(e) => update('max_iterations', Number(e.target.value))} />
             </div>
           )}
-          <div className="config-hint">
+          {node.data.loop_mode === 'condition' && (
+            <>
+              {upstreamVars.length > 0 ? (
+                <ConditionExprBuilder
+                  varPath={String(node.data.cond_var || '')}
+                  operator={String(node.data.cond_op || '==')}
+                  value={String(node.data.cond_value ?? '')}
+                  vars={upstreamVars}
+                  onVarChange={(v) => {
+                    const ops = OPERATORS_FOR_TYPE[upstreamVars.find(f => f.path === v)?.type || 'boolean'] || OPERATORS_FOR_TYPE['boolean']
+                    onChange(node.id, { ...node.data, cond_var: v, cond_op: ops[0]?.value || '==', cond_value: '' })
+                  }}
+                  onOpChange={(op) => update('cond_op', op)}
+                  onValueChange={(val) => update('cond_value', val)}
+                  getOpsForVar={getOpsForVar}
+                />
+              ) : (
+                <div className="config-hint">{t('config.branch.noVars')}</div>
+              )}
+              <div className="config-field">
+                <label>{t('config.loopMaxSafety')}</label>
+                <input type="number" value={String(node.data.max_iterations ?? 1000)} min="1" onChange={(e) => update('max_iterations', Number(e.target.value))} />
+              </div>
+            </>
+          )}
+          <div className="config-hint" style={{ whiteSpace: 'pre-line' }}>
             {t('config.loopHint')}
           </div>
         </>
+      )}
+    </div>
+  )
+}
+
+/** Reusable condition expression builder: [variable ▼] [op ▼] [value] */
+function ConditionExprBuilder({
+  varPath, operator, value, vars,
+  onVarChange, onOpChange, onValueChange, getOpsForVar,
+}: {
+  varPath: string
+  operator: string
+  value: string
+  vars: VarField[]
+  onVarChange: (v: string) => void
+  onOpChange: (op: string) => void
+  onValueChange: (val: string) => void
+  getOpsForVar: (varPath: string) => { value: string; label: string }[]
+}) {
+  const { t } = useI18n()
+  const selectedVar = vars.find((v) => v.path === varPath)
+  const ops = getOpsForVar(varPath)
+  const varType = selectedVar?.type || 'boolean'
+  const isUnary = operator === 'exists' || operator === '!exists'
+
+  return (
+    <div className="condition-expr">
+      {/* Variable selector */}
+      <div className="config-field">
+        <label>{t('config.branch.variable')}</label>
+        <select value={varPath} onChange={(e) => onVarChange(e.target.value)}>
+          <option value="">{t('config.branch.selectVar')}</option>
+          {vars.map((v) => (
+            <option key={v.path} value={v.path}>
+              {v.path} ({t(`config.varType.${v.type}` as any)})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Operator */}
+      {varPath && (
+        <div className="config-field">
+          <label>{t('config.branch.operator')}</label>
+          <select value={operator} onChange={(e) => onOpChange(e.target.value)}>
+            {ops.map((op) => (
+              <option key={op.value} value={op.value}>{op.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Value (type-aware) */}
+      {varPath && !isUnary && (
+        <div className="config-field">
+          <label>{t('config.branch.value')}</label>
+          {varType === 'boolean' ? (
+            <select value={value} onChange={(e) => onValueChange(e.target.value)}>
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          ) : varType === 'number' ? (
+            <input type="number" value={value} onChange={(e) => onValueChange(e.target.value)} />
+          ) : (
+            <input value={value} onChange={(e) => onValueChange(e.target.value)} />
+          )}
+        </div>
       )}
     </div>
   )
