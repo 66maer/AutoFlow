@@ -30,6 +30,11 @@ def create_app() -> FastAPI:
     app.include_router(logs_router, prefix="/api")
     app.include_router(ws_router)
 
+    # Mount MCP server at /mcp (Streamable HTTP transport)
+    from app.mcp import mcp_server
+
+    app.mount("/mcp", mcp_server.streamable_http_app())
+
     return app
 
 
