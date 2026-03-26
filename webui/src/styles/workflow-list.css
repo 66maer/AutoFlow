@@ -58,6 +58,54 @@
   margin-bottom: 12px;
 }
 
+/* Repeat controls on card */
+.workflow-repeat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.repeat-checkbox-card {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.repeat-checkbox-card input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.repeat-count-card {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.repeat-count-card input {
+  width: 52px;
+  padding: 2px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+  text-align: center;
+}
+
+.repeat-count-card input:focus {
+  border-color: var(--primary);
+}
+
 .workflow-actions {
   display: flex;
   gap: 8px;

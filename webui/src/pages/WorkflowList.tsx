@@ -37,6 +37,22 @@ export default function WorkflowList() {
     load()
   }
 
+  const updateRepeat = async (wf: Workflow, updates: { repeat_count?: number; repeat_forever?: boolean }) => {
+    const newForever = updates.repeat_forever ?? wf.repeat_forever
+    const newCount = updates.repeat_count ?? wf.repeat_count
+    await api.update(wf.id, {
+      repeat_count: newForever ? 0 : newCount,
+      repeat_forever: newForever,
+    } as any)
+    setList((prev) =>
+      prev.map((w) =>
+        w.id === wf.id
+          ? { ...w, repeat_forever: newForever, repeat_count: newForever ? 0 : newCount }
+          : w,
+      ),
+    )
+  }
+
   return (
     <>
       <div className="page-header">
@@ -64,6 +80,27 @@ export default function WorkflowList() {
                 <div className="workflow-meta">
                   <span>{wf.nodes.length} {t('workflows.nodes', { count: wf.nodes.length }).replace(/^\d+\s*/, '')}</span>
                   <span>{new Date(wf.updated_at).toLocaleDateString()}</span>
+                </div>
+                <div className="workflow-repeat" onClick={(e) => e.stopPropagation()}>
+                  <label className="repeat-checkbox-card">
+                    <input
+                      type="checkbox"
+                      checked={wf.repeat_forever}
+                      onChange={(e) => updateRepeat(wf, { repeat_forever: e.target.checked })}
+                    />
+                    {t('editor.repeatForever')}
+                  </label>
+                  {!wf.repeat_forever && (
+                    <div className="repeat-count-card">
+                      <span>{t('editor.repeatCount')}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={wf.repeat_count || 1}
+                        onChange={(e) => updateRepeat(wf, { repeat_count: Math.max(1, Number(e.target.value)) })}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="workflow-actions" onClick={(e) => e.stopPropagation()}>
                   <button className="ghost" onClick={() => handleRun(wf.id)}>{t('common.run')}</button>

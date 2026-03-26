@@ -89,6 +89,17 @@ const enUS = {
   'template.replace': 'Replace Image',
   'template.uploading': 'Uploading...',
 
+  // Context Menu
+  'ctx.copy': 'Copy',
+  'ctx.cut': 'Cut',
+  'ctx.paste': 'Paste',
+  'ctx.delete': 'Delete',
+  'ctx.selectAll': 'Select All',
+  'ctx.undo': 'Undo',
+  'ctx.redo': 'Redo',
+  'ctx.add': 'Add',
+  'ctx.addAfter': 'Add after:',
+
   // Logs
   'logs.title': 'Execution Logs',
   'logs.empty': 'No logs yet.',

@@ -89,6 +89,17 @@ const zhCN = {
   'template.replace': '更换图片',
   'template.uploading': '上传中...',
 
+  // Context Menu
+  'ctx.copy': '复制',
+  'ctx.cut': '剪切',
+  'ctx.paste': '粘贴',
+  'ctx.delete': '删除',
+  'ctx.selectAll': '全选',
+  'ctx.undo': '撤销',
+  'ctx.redo': '重做',
+  'ctx.add': '添加',
+  'ctx.addAfter': '后接',
+
   // Logs
   'logs.title': '执行日志',
   'logs.empty': '暂无日志。',

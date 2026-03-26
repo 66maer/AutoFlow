@@ -18,3 +18,8 @@ wheels/
 # IDE
 .idea/
 .vscode/
+
+# temp files
+*.log
+*.tmp
+tmp/
