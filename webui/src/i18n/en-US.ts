@@ -31,6 +31,11 @@ const enUS = {
   'editor.repeatForever': 'Loop Forever',
   'editor.nodeList': 'Nodes',
 
+  // Node Categories
+  'category.sensor': 'Sensor',
+  'category.action': 'Action',
+  'category.control': 'Control',
+
   // Node Types
   'node.find_image': 'Find Image',
   'node.click': 'Click',
@@ -38,6 +43,7 @@ const enUS = {
   'node.type_text': 'Type Text',
   'node.wait': 'Wait',
   'node.condition': 'Condition',
+  'node.branch': 'Branch',
   'node.loop': 'Loop',
 
   // Node Details
@@ -46,8 +52,12 @@ const enUS = {
   'node.click.coord': 'At ({x}, {y})',
   'node.click.window': 'Relative to window',
   'node.find_image.paste': 'Paste or select image',
+  'node.find_image.timeout': 'Timeout {ms}ms',
   'node.wait.detail': 'Wait {ms}ms',
   'node.loop.detail': 'Max {max} times',
+  'node.loop.infinite': 'Infinite loop',
+  'node.combo': 'Combo Action',
+  'node.combo.steps': '{count} steps',
   'node.click.left': 'Left',
   'node.click.right': 'Right',
   'node.click.middle': 'Middle',
@@ -82,6 +92,29 @@ const enUS = {
   'config.stopWhen.notFound': 'Image Not Found',
   'config.intervalMs': 'Interval (ms)',
   'config.confidence': 'Confidence',
+  'config.timeoutEnabled': 'Enable Timeout',
+  'config.timeoutMs': 'Timeout (ms)',
+  'config.retryIntervalMs': 'Retry Interval (ms)',
+  'config.loopMode': 'Loop Mode',
+  'config.loopMode.count': 'Fixed Count',
+  'config.loopMode.infinite': 'Infinite',
+  'config.loopCount': 'Loop Count',
+
+  // Key Recorder
+  'config.keyRecorder.placeholder': 'Click to record key',
+  'config.keyRecorder.hint': 'Press a key...',
+  'config.keyRecorder.record': 'Record',
+  'config.keyRecorder.stop': 'Stop',
+  'config.keyRecorder.selectKey': '-- Select key --',
+
+  // Combo Node
+  'config.combo.addStep': '+ Add Step',
+  'config.combo.stepAction': 'Action',
+  'config.combo.action.key_down': 'Key Down',
+  'config.combo.action.key_up': 'Key Up',
+  'config.combo.action.click': 'Click',
+  'config.combo.action.wait': 'Wait',
+  'config.combo.action.type_text': 'Type Text',
 
   // Template Image
   'template.pasteHint': 'Click to paste screenshot, or drop image',

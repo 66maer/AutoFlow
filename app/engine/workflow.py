@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -164,7 +165,7 @@ class WorkflowEngine:
         # Follow edges
         next_edges = adj.get(node_id, [])
 
-        if node_type == "condition":
+        if node_type in ("condition", "branch"):
             found = ctx.last_match is not None
             for edge in next_edges:
                 label = edge.get(
@@ -180,6 +181,40 @@ class WorkflowEngine:
                         ctx,
                         on_step,
                     )
+        elif (
+            node_type == "find_image"
+            and node_data.get("timeout_enabled")
+        ):
+            # Timeout-enabled find_image has "success" and "timeout" handles
+            found = ctx.last_match is not None
+            for edge in next_edges:
+                handle = edge.get("sourceHandle", "")
+                if handle == "timeout" and not found:
+                    await self._execute_from(
+                        edge["target"],
+                        node_map,
+                        adj,
+                        ctx,
+                        on_step,
+                    )
+                elif handle == "success" and found:
+                    await self._execute_from(
+                        edge["target"],
+                        node_map,
+                        adj,
+                        ctx,
+                        on_step,
+                    )
+                elif handle not in ("success", "timeout"):
+                    # Default handle (no specific handle ID) — follow if found
+                    if found:
+                        await self._execute_from(
+                            edge["target"],
+                            node_map,
+                            adj,
+                            ctx,
+                            on_step,
+                        )
         else:
             for edge in next_edges:
                 await self._execute_from(
@@ -201,10 +236,29 @@ class WorkflowEngine:
             return {"captured": True}
 
         elif node_type == "find_image":
-            ctx.last_capture = self._capture.capture()
             tpl = _load_template(data)
-            match = self._matcher.find(tpl, ctx.last_capture)
-            ctx.last_match = match
+
+            if data.get("timeout_enabled"):
+                # Retry loop until match found or timeout
+                timeout_ms = data.get("timeout_ms", 5000)
+                interval_ms = data.get("retry_interval_ms", 500)
+                deadline = time.monotonic() + timeout_ms / 1000.0
+                match = None
+                while not self._cancelled:
+                    ctx.last_capture = self._capture.capture()
+                    match = self._matcher.find(
+                        tpl, ctx.last_capture
+                    )
+                    if match:
+                        break
+                    if time.monotonic() >= deadline:
+                        break
+                    await asyncio.sleep(interval_ms / 1000.0)
+                ctx.last_match = match
+            else:
+                ctx.last_capture = self._capture.capture()
+                match = self._matcher.find(tpl, ctx.last_capture)
+                ctx.last_match = match
 
             if data.get("save_to"):
                 ctx.variables[data["save_to"]] = match
@@ -226,9 +280,37 @@ class WorkflowEngine:
             return {"clicked": True, "x": x, "y": y}
 
         elif node_type == "key_press":
-            key = data.get("key", "")
-            self._input.key_press(key)
-            return {"key": key}
+            # Support combo keys: "ctrl+a" → hold modifiers, press main, release
+            keys_str = data.get("keys") or data.get("key", "")
+            parts = [k.strip() for k in keys_str.split("+") if k.strip()]
+            if not parts:
+                return {"keys": keys_str}
+
+            modifiers = []
+            main_key = None
+            modifier_names = {"ctrl", "shift", "alt", "meta"}
+            for p in parts:
+                if p in modifier_names:
+                    modifiers.append(p)
+                else:
+                    main_key = p
+
+            # Hold modifiers
+            for m in modifiers:
+                k = "win" if m == "meta" else m
+                self._input.key_down(k)
+            # Press main key (if any)
+            if main_key:
+                self._input.key_press(main_key)
+            else:
+                # Only modifiers — press and release them as combo
+                pass
+            # Release modifiers in reverse
+            for m in reversed(modifiers):
+                k = "win" if m == "meta" else m
+                self._input.key_up(k)
+
+            return {"keys": keys_str}
 
         elif node_type == "type_text":
             text = data.get("text", "")
@@ -240,8 +322,16 @@ class WorkflowEngine:
             await asyncio.sleep(ms / 1000.0)
             return {"waited_ms": ms}
 
-        elif node_type == "condition":
+        elif node_type in ("condition", "branch"):
             return {"found": ctx.last_match is not None}
+
+        elif node_type == "combo":
+            steps = data.get("steps", [])
+            for step in steps:
+                if self._cancelled:
+                    break
+                await self._execute_combo_step(step, ctx)
+            return {"steps_executed": len(steps)}
 
         elif node_type == "loop":
             tpl = _load_template(data)
@@ -268,6 +358,46 @@ class WorkflowEngine:
         else:
             logger.warning("Unknown node type: %s", node_type)
             return None
+
+    async def _execute_combo_step(
+        self,
+        step: dict[str, Any],
+        ctx: ExecutionContext,
+    ) -> None:
+        """Execute a single step in a combo action."""
+        action = step.get("action", "")
+
+        if action == "key_down":
+            key = step.get("key", "")
+            if key:
+                # Parse combo: for "ctrl", just key_down "ctrl"
+                # For "ctrl+shift", key_down both
+                for part in key.split("+"):
+                    k = "win" if part.strip() == "meta" else part.strip()
+                    if k:
+                        self._input.key_down(k)
+
+        elif action == "key_up":
+            key = step.get("key", "")
+            if key:
+                for part in reversed(key.split("+")):
+                    k = "win" if part.strip() == "meta" else part.strip()
+                    if k:
+                        self._input.key_up(k)
+
+        elif action == "click":
+            x, y = self._resolve_click(step, ctx)
+            button = step.get("button", "left")
+            self._input.click(int(x), int(y), button=button)
+
+        elif action == "wait":
+            ms = step.get("ms", 100)
+            await asyncio.sleep(ms / 1000.0)
+
+        elif action == "type_text":
+            text = step.get("text", "")
+            if text:
+                self._input.type_text(text)
 
     def _resolve_click(
         self,

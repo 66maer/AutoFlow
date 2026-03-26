@@ -31,6 +31,11 @@ const zhCN = {
   'editor.repeatForever': '无限循环',
   'editor.nodeList': '节点列表',
 
+  // Node Categories
+  'category.sensor': '感知节点',
+  'category.action': '动作节点',
+  'category.control': '控制节点',
+
   // Node Types
   'node.find_image': '找图',
   'node.click': '点击',
@@ -38,6 +43,7 @@ const zhCN = {
   'node.type_text': '输入文本',
   'node.wait': '等待',
   'node.condition': '条件判断',
+  'node.branch': '条件分支',
   'node.loop': '循环',
 
   // Node Details (shown on node body)
@@ -46,8 +52,12 @@ const zhCN = {
   'node.click.coord': '坐标 ({x}, {y})',
   'node.click.window': '窗口相对位置',
   'node.find_image.paste': '粘贴或选择图片',
+  'node.find_image.timeout': '超时 {ms}ms',
   'node.wait.detail': '等待 {ms}ms',
   'node.loop.detail': '最多 {max} 次',
+  'node.loop.infinite': '无限循环',
+  'node.combo': '组合动作',
+  'node.combo.steps': '{count} 个步骤',
   'node.click.left': '左键',
   'node.click.right': '右键',
   'node.click.middle': '中键',
@@ -82,6 +92,29 @@ const zhCN = {
   'config.stopWhen.notFound': '未找到图片时停止',
   'config.intervalMs': '检查间隔 (ms)',
   'config.confidence': '匹配置信度',
+  'config.timeoutEnabled': '启用超时',
+  'config.timeoutMs': '超时时间 (ms)',
+  'config.retryIntervalMs': '重试间隔 (ms)',
+  'config.loopMode': '循环方式',
+  'config.loopMode.count': '固定次数',
+  'config.loopMode.infinite': '无限循环',
+  'config.loopCount': '循环次数',
+
+  // Key Recorder
+  'config.keyRecorder.placeholder': '点击录制按键',
+  'config.keyRecorder.hint': '请按下按键...',
+  'config.keyRecorder.record': '录制',
+  'config.keyRecorder.stop': '停止',
+  'config.keyRecorder.selectKey': '-- 选择按键 --',
+
+  // Combo Node
+  'config.combo.addStep': '+ 添加步骤',
+  'config.combo.stepAction': '动作',
+  'config.combo.action.key_down': '按下按键',
+  'config.combo.action.key_up': '释放按键',
+  'config.combo.action.click': '鼠标点击',
+  'config.combo.action.wait': '等待',
+  'config.combo.action.type_text': '输入文本',
 
   // Template Image
   'template.pasteHint': '点击此处粘贴截图，或拖入图片',

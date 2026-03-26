@@ -18,7 +18,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import { workflows as api } from '../api/client'
+import { workflows as api, templates as templatesApi } from '../api/client'
 import { useI18n } from '../i18n'
 import FlowNode from '../components/FlowNode'
 import NodeConfigPanel from '../components/NodeConfigPanel'
@@ -26,7 +26,53 @@ import ContextMenu, { type MenuEntry } from '../components/ContextMenu'
 import useUndoRedo from '../hooks/useUndoRedo'
 import '../styles/editor.css'
 
-const NODE_TYPES_LIST = ['find_image', 'click', 'key_press', 'type_text', 'wait', 'condition', 'loop']
+/** Node categories for the palette */
+interface NodePreset {
+  nodeType: string
+  defaultData?: Record<string, unknown>
+}
+
+interface NodeCategory {
+  key: string
+  presets: NodePreset[]
+}
+
+const NODE_CATEGORIES: NodeCategory[] = [
+  {
+    key: 'sensor',
+    presets: [
+      { nodeType: 'find_image', defaultData: { confidence: 0.8 } },
+    ],
+  },
+  {
+    key: 'action',
+    presets: [
+      { nodeType: 'click', defaultData: { click_mode: 'image' } },
+      { nodeType: 'key_press' },
+      { nodeType: 'type_text' },
+      { nodeType: 'wait', defaultData: { ms: 1000 } },
+      { nodeType: 'combo', defaultData: { steps: [] } },
+    ],
+  },
+  {
+    key: 'control',
+    presets: [
+      { nodeType: 'branch' },
+      { nodeType: 'loop', defaultData: { loop_mode: 'count', max_iterations: 10 } },
+    ],
+  },
+]
+
+/** Flat list of all node types */
+const ALL_NODE_TYPES = NODE_CATEGORIES.flatMap((c) => c.presets.map((p) => p.nodeType))
+
+/** Default data for each node type */
+const DEFAULT_DATA_MAP: Record<string, Record<string, unknown>> = {}
+NODE_CATEGORIES.forEach((c) =>
+  c.presets.forEach((p) => {
+    if (p.defaultData) DEFAULT_DATA_MAP[p.nodeType] = p.defaultData
+  }),
+)
 
 const nodeTypes = { custom: FlowNode }
 
@@ -34,12 +80,13 @@ const NODE_SPACING_Y = 100
 
 /** Quick-add rules: right-clicking a node shows "add after" options */
 const QUICK_ADD_MAP: Record<string, string[]> = {
-  find_image: ['click', 'condition', 'wait'],
+  find_image: ['click', 'branch', 'wait'],
   click: ['wait', 'find_image', 'key_press'],
   key_press: ['wait', 'type_text'],
   type_text: ['wait', 'key_press'],
   wait: ['find_image', 'click'],
-  condition: ['find_image', 'click'],
+  combo: ['find_image', 'wait', 'click'],
+  branch: ['find_image', 'click'],
   loop: ['find_image', 'click', 'wait'],
 }
 
@@ -87,12 +134,16 @@ function WorkflowEditorInner() {
       setName(wf.name)
       setRepeatCount(wf.repeat_count ?? 1)
       setRepeatForever(wf.repeat_forever ?? false)
-      const loaded: Node[] = (wf.nodes || []).map((n: Record<string, any>) => ({
-        id: n.id,
-        position: n.position || { x: 0, y: 0 },
-        type: 'custom',
-        data: { ...n.data, nodeType: n.data?.nodeType || n.type },
-      }))
+      const loaded: Node[] = (wf.nodes || []).map((n: Record<string, any>) => {
+        let nt = n.data?.nodeType || n.type
+        if (nt === 'condition') nt = 'branch' // backward compat
+        return {
+          id: n.id,
+          position: n.position || { x: 0, y: 0 },
+          type: 'custom',
+          data: { ...n.data, nodeType: nt },
+        }
+      })
       const loadedEdges = (wf.edges || []) as Edge[]
       setNodes(loaded)
       setEdges(loadedEdges)
@@ -172,10 +223,7 @@ function WorkflowEditorInner() {
           ? { x: lastNode.position.x, y: lastNode.position.y + NODE_SPACING_Y }
           : { x: 250, y: 80 }
 
-      const defaultData: Record<string, unknown> = { nodeType }
-      if (nodeType === 'click') {
-        defaultData.click_mode = 'image'
-      }
+      const defaultData: Record<string, unknown> = { nodeType, ...DEFAULT_DATA_MAP[nodeType] }
 
       const newNode: Node = {
         id: `${nodeType}_${Date.now()}`,
@@ -205,8 +253,7 @@ function WorkflowEditorInner() {
       if (!source) return currentNodes
 
       const newPosition = { x: source.position.x, y: source.position.y + NODE_SPACING_Y }
-      const defaultData: Record<string, unknown> = { nodeType }
-      if (nodeType === 'click') defaultData.click_mode = 'image'
+      const defaultData: Record<string, unknown> = { nodeType, ...DEFAULT_DATA_MAP[nodeType] }
 
       const newNode: Node = {
         id: `${nodeType}_${Date.now()}`,
@@ -305,12 +352,18 @@ function WorkflowEditorInner() {
     setNodes((nds) => nds.map((n) => ({ ...n, selected: true })))
   }, [setNodes])
 
+  const selectedNodeRef = useRef(selectedNode)
+  selectedNodeRef.current = selectedNode
+
   // ---- Keyboard shortcuts ----
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept when typing in inputs
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      // Don't intercept when focus is inside config panel (e.g. template drop zone)
+      if ((e.target as HTMLElement).closest('.node-config-panel')) return
 
       // Space for pan mode
       if (e.code === 'Space' && !e.repeat) {
@@ -338,8 +391,7 @@ function WorkflowEditorInner() {
             cutSelected()
             return
           case 'v':
-            e.preventDefault()
-            pasteClipboard()
+            // Don't preventDefault yet — let the paste event fire for image handling
             return
           case 'a':
             e.preventDefault()
@@ -360,13 +412,78 @@ function WorkflowEditorInner() {
       }
     }
 
+    // Global paste handler: image paste → find_image node, else → node clipboard paste
+    const handlePaste = (e: ClipboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      // Let config panel handle its own paste
+      if ((e.target as HTMLElement).closest('.node-config-panel')) return
+
+      const items = e.clipboardData?.items
+      if (items) {
+        // Check for image data first
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            const sel = selectedNodeRef.current
+            if (sel && (sel.data as any).nodeType === 'find_image') {
+              e.preventDefault()
+              const blob = item.getAsFile()
+              if (blob) {
+                templatesApi.upload(blob, 'paste.png').then((res) => {
+                  handleNodeDataChange(sel.id, { ...sel.data, template_id: res.id })
+                })
+              }
+              return
+            }
+          }
+        }
+      }
+
+      // No image or no find_image selected → do node clipboard paste
+      e.preventDefault()
+      pasteClipboard()
+    }
+
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('paste', handlePaste)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('paste', handlePaste)
     }
-  }, [undo, redo, copySelected, cutSelected, pasteClipboard, selectAll, deleteSelected])
+  }, [undo, redo, copySelected, cutSelected, pasteClipboard, selectAll, deleteSelected, handleNodeDataChange])
+
+  // ---- Drag from palette ----
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }, [])
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      const nodeType = e.dataTransfer.getData('application/reactflow-nodetype')
+      if (!nodeType) return
+
+      const bounds = wrapperRef.current?.getBoundingClientRect()
+      const position = reactFlowInstance.screenToFlowPosition({
+        x: e.clientX - (bounds?.left || 0),
+        y: e.clientY - (bounds?.top || 0),
+      })
+
+      pushSnapshot()
+      const defaultData: Record<string, unknown> = { nodeType, ...DEFAULT_DATA_MAP[nodeType] }
+      const newNode: Node = {
+        id: `${nodeType}_${Date.now()}`,
+        type: 'custom',
+        position,
+        data: defaultData,
+      }
+      setNodes((nds) => [...nds, newNode])
+    },
+    [reactFlowInstance, pushSnapshot, setNodes],
+  )
 
   // ---- Context menus ----
   const onNodeContextMenu = useCallback(
@@ -375,7 +492,7 @@ function WorkflowEditorInner() {
       e.stopPropagation()
 
       const nodeType = (node.data as any).nodeType as string
-      const quickAddTypes = QUICK_ADD_MAP[nodeType] || NODE_TYPES_LIST
+      const quickAddTypes = QUICK_ADD_MAP[nodeType] || ALL_NODE_TYPES
 
       const items: MenuEntry[] = [
         { label: t('ctx.copy'), shortcut: 'Ctrl+C', onClick: () => { setSelectedNode(node); copySelected() } },
@@ -415,7 +532,7 @@ function WorkflowEditorInner() {
         { label: t('ctx.undo'), shortcut: 'Ctrl+Z', onClick: undo },
         { label: t('ctx.redo'), shortcut: 'Ctrl+Y', onClick: redo },
         { separator: true },
-        ...NODE_TYPES_LIST.map((nt) => ({
+        ...ALL_NODE_TYPES.map((nt) => ({
           label: `${t('ctx.add')} ${t(`node.${nt}` as any)}`,
           onClick: () => addNode(nt, flowPosition),
         })),
@@ -431,12 +548,15 @@ function WorkflowEditorInner() {
     if (!id) return
     setSaving(true)
     try {
-      const saveNodes = nodes.map((n) => ({
-        id: n.id,
-        type: (n.data as Record<string, any>).nodeType || 'click',
-        position: n.position,
-        data: n.data,
-      }))
+      const saveNodes = nodes.map((n) => {
+        const nt = (n.data as Record<string, any>).nodeType || 'click'
+        return {
+          id: n.id,
+          type: nt,
+          position: n.position,
+          data: n.data,
+        }
+      })
       await api.update(id, {
         name,
         nodes: saveNodes as any,
@@ -505,10 +625,23 @@ function WorkflowEditorInner() {
 
       <div className="editor-canvas" ref={wrapperRef}>
         <div className="node-palette">
-          <div className="palette-title">{t('nav.workflows')}</div>
-          {NODE_TYPES_LIST.map((nodeType) => (
-            <div key={nodeType} className="palette-item" onClick={() => addNode(nodeType)}>
-              {t(`node.${nodeType}` as any)}
+          {NODE_CATEGORIES.map((cat) => (
+            <div key={cat.key} className="palette-group">
+              <div className="palette-title">{t(`category.${cat.key}` as any)}</div>
+              {cat.presets.map((preset) => (
+                <div
+                  key={preset.nodeType}
+                  className={`palette-item palette-item--${cat.key}`}
+                  onClick={() => addNode(preset.nodeType)}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/reactflow-nodetype', preset.nodeType)
+                    e.dataTransfer.effectAllowed = 'move'
+                  }}
+                >
+                  {t(`node.${preset.nodeType}` as any)}
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -523,6 +656,8 @@ function WorkflowEditorInner() {
           onPaneClick={onPaneClick}
           onNodeContextMenu={onNodeContextMenu}
           onPaneContextMenu={onPaneContextMenu}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
           nodeTypes={nodeTypes}
           fitView
           /* Selection: left-click drag = box select */
