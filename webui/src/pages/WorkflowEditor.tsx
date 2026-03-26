@@ -10,6 +10,7 @@ import {
   Controls,
   Background,
   SelectionMode,
+  MarkerType,
   type Connection,
   type Node,
   type Edge,
@@ -219,12 +220,25 @@ function WorkflowEditorInner() {
   const onConnect = useCallback(
     (conn: Connection) => {
       if (!conn.source || !conn.target) return
-      // Prevent self-loops
       if (conn.source === conn.target) return
-      // Prevent cycles (except connecting to loop node's loop_back handle)
       if (wouldCreateCycle(conn.source, conn.target, conn.targetHandle, edgesRef.current, nodesRef.current)) return
       pushSnapshot()
-      setEdges((eds) => addEdge(conn, eds))
+
+      // Loop-back edges: smoothstep with offset so the line routes wide around nodes
+      if (conn.targetHandle === 'loop_back') {
+        const edge = {
+          id: `e_${conn.source}_${conn.target}_lb`,
+          source: conn.source,
+          target: conn.target,
+          sourceHandle: conn.sourceHandle,
+          targetHandle: conn.targetHandle,
+          type: 'smoothstep' as const,
+          pathOptions: { offset: 50, borderRadius: 16 },
+        }
+        setEdges((eds) => [...eds, edge])
+      } else {
+        setEdges((eds) => addEdge(conn, eds))
+      }
     },
     [setEdges, pushSnapshot],
   )
@@ -511,6 +525,50 @@ function WorkflowEditorInner() {
     e.dataTransfer.dropEffect = 'move'
   }, [])
 
+  /** Find the edge closest to a drop position, if within threshold */
+  const findEdgeAtPosition = useCallback(
+    (pos: { x: number; y: number }): Edge | null => {
+      const THRESHOLD_X = 80
+      const THRESHOLD_Y = 20
+      const currentNodes = nodesRef.current
+      const currentEdges = edgesRef.current
+
+      let bestEdge: Edge | null = null
+      let bestDist = Infinity
+
+      for (const edge of currentEdges) {
+        const srcNode = currentNodes.find((n) => n.id === edge.source)
+        const tgtNode = currentNodes.find((n) => n.id === edge.target)
+        if (!srcNode || !tgtNode) continue
+
+        // Approximate node center (assume ~70px half-width, ~30px half-height)
+        const sx = srcNode.position.x + 70
+        const sy = srcNode.position.y + 30
+        const tx = tgtNode.position.x + 70
+        const ty = tgtNode.position.y + 30
+
+        const minY = Math.min(sy, ty) + THRESHOLD_Y
+        const maxY = Math.max(sy, ty) - THRESHOLD_Y
+        if (pos.y < minY || pos.y > maxY) continue
+
+        // Check horizontal proximity to the line between source and target
+        const midX = (sx + tx) / 2
+        const dx = Math.abs(pos.x - midX)
+        if (dx > THRESHOLD_X) continue
+
+        // Use distance to midpoint as ranking
+        const dist = Math.hypot(pos.x - midX, pos.y - (sy + ty) / 2)
+        if (dist < bestDist) {
+          bestDist = dist
+          bestEdge = edge
+        }
+      }
+
+      return bestEdge
+    },
+    [],
+  )
+
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
@@ -531,9 +589,34 @@ function WorkflowEditorInner() {
         position,
         data: defaultData,
       }
-      setNodes((nds) => [...nds, newNode])
+
+      // Check if dropped on an edge → auto-insert
+      const hitEdge = findEdgeAtPosition(position)
+      if (hitEdge) {
+        setNodes((nds) => [...nds, newNode])
+        setEdges((eds) => {
+          const filtered = eds.filter((e) => e.id !== hitEdge.id)
+          return [
+            ...filtered,
+            {
+              id: `e_${hitEdge.source}_${newNode.id}`,
+              source: hitEdge.source,
+              target: newNode.id,
+              sourceHandle: hitEdge.sourceHandle,
+            } as Edge,
+            {
+              id: `e_${newNode.id}_${hitEdge.target}`,
+              source: newNode.id,
+              target: hitEdge.target,
+              targetHandle: hitEdge.targetHandle,
+            } as Edge,
+          ]
+        })
+      } else {
+        setNodes((nds) => [...nds, newNode])
+      }
     },
-    [reactFlowInstance, pushSnapshot, setNodes],
+    [reactFlowInstance, pushSnapshot, setNodes, setEdges, findEdgeAtPosition],
   )
 
   // ---- Context menus ----
@@ -732,6 +815,7 @@ function WorkflowEditorInner() {
           onDrop={onDrop}
           onDragOver={onDragOver}
           nodeTypes={nodeTypes}
+          defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 } }}
           fitView
           /* Selection: left-click drag = box select */
           selectionOnDrag={!spaceHeld}
