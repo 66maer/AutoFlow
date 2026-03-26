@@ -47,6 +47,29 @@ async def _save_log(
         logger.exception("Failed to save execution log")
 
 
+async def _broadcast_step(
+    workflow_id: str,
+    node_id: str,
+    status: str,
+    detail: dict[str, Any],
+) -> None:
+    """Broadcast a step event to WebSocket clients."""
+    try:
+        from app.ws.logs import broadcast_log
+
+        await broadcast_log(
+            {
+                "type": "step",
+                "workflow_id": workflow_id,
+                "node_id": node_id,
+                "status": status,
+                "detail": detail,
+            }
+        )
+    except Exception:
+        logger.debug("Failed to broadcast step", exc_info=True)
+
+
 async def run_workflow(
     workflow_id: str,
     nodes: list[dict[str, Any]],
@@ -66,9 +89,43 @@ async def run_workflow(
     )
     _running[workflow_id] = engine
 
+    async def step_callback(
+        node_id: str, status: str, detail: dict[str, Any]
+    ) -> None:
+        # Find node type from nodes list
+        node_type = ""
+        for n in nodes:
+            if n["id"] == node_id:
+                node_type = n.get("type", "")
+                break
+        await _broadcast_step(
+            workflow_id,
+            node_id,
+            status,
+            {**detail, "node_type": node_type},
+        )
+        if on_step:
+            await on_step(node_id, status, detail)
+
+    # Broadcast workflow start
+    try:
+        from app.ws.logs import broadcast_log
+
+        await broadcast_log(
+            {
+                "type": "workflow",
+                "workflow_id": workflow_id,
+                "status": "running",
+            }
+        )
+    except Exception:
+        pass
+
     started_at = datetime.now(UTC)
     try:
-        ctx = await engine.execute(nodes, edges, on_step=on_step)
+        ctx = await engine.execute(
+            nodes, edges, on_step=step_callback
+        )
         result = {
             "status": "success",
             "started_at": started_at.isoformat(),
@@ -78,20 +135,52 @@ async def run_workflow(
         await _save_log(
             workflow_id, "success", started_at, {"logs": ctx.logs}
         )
+        # Broadcast workflow complete
+        try:
+            from app.ws.logs import broadcast_log
+
+            await broadcast_log(
+                {
+                    "type": "workflow",
+                    "workflow_id": workflow_id,
+                    "status": "success",
+                }
+            )
+        except Exception:
+            pass
         return result
     except WorkflowExecutionError as exc:
+        # Save partial step logs so user can see where it broke
+        partial_logs = []
+        if engine.context:
+            partial_logs = engine.context.logs
         result = {
             "status": "failed",
             "started_at": started_at.isoformat(),
             "finished_at": datetime.now(UTC).isoformat(),
             "error": str(exc),
+            "logs": partial_logs,
         }
         await _save_log(
             workflow_id,
             "failed",
             started_at,
-            {"error": str(exc)},
+            {"error": str(exc), "logs": partial_logs},
         )
+        # Broadcast workflow failed
+        try:
+            from app.ws.logs import broadcast_log
+
+            await broadcast_log(
+                {
+                    "type": "workflow",
+                    "workflow_id": workflow_id,
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            )
+        except Exception:
+            pass
         return result
     finally:
         _running.pop(workflow_id, None)

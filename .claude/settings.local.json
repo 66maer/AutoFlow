@@ -11,7 +11,9 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite:*)",
       "WebFetch(domain:www.flaticon.com)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(xargs wc:*)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

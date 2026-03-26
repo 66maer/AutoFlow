@@ -77,6 +77,11 @@ class WorkflowEngine:
     def cancel(self):
         self._cancelled = True
 
+    @property
+    def context(self) -> ExecutionContext | None:
+        """Access the current execution context (available during/after execute)."""
+        return getattr(self, "_ctx", None)
+
     async def execute(
         self,
         nodes: list[dict[str, Any]],
@@ -88,6 +93,7 @@ class WorkflowEngine:
         on_step: optional async callback(node_id, status, detail).
         """
         ctx = ExecutionContext()
+        self._ctx = ctx
 
         node_map = {n["id"]: n for n in nodes}
         adj = self._build_adjacency(edges)
@@ -135,29 +141,45 @@ class WorkflowEngine:
         node_type = node.get("type", "")
         node_data = node.get("data", {})
 
-        step_log = {
+        node_label = node_data.get("label", "")
+        started_at = time.time()
+        step_log: dict[str, Any] = {
             "node_id": node_id,
             "type": node_type,
+            "label": node_label,
             "status": "running",
+            "started_at": started_at,
         }
         ctx.logs.append(step_log)
 
         if on_step:
-            await on_step(node_id, "running", {})
+            await on_step(node_id, "running", {"label": node_label})
 
         try:
             result = await self._execute_node(
                 node_type, node_data, ctx
             )
+            elapsed_ms = round((time.time() - started_at) * 1000)
             step_log["status"] = "success"
             step_log["result"] = result
+            step_log["elapsed_ms"] = elapsed_ms
             if on_step:
-                await on_step(node_id, "success", result or {})
+                await on_step(
+                    node_id,
+                    "success",
+                    {**(result or {}), "elapsed_ms": elapsed_ms, "label": node_label},
+                )
         except Exception as exc:
+            elapsed_ms = round((time.time() - started_at) * 1000)
             step_log["status"] = "failed"
             step_log["error"] = str(exc)
+            step_log["elapsed_ms"] = elapsed_ms
             if on_step:
-                await on_step(node_id, "failed", {"error": str(exc)})
+                await on_step(
+                    node_id,
+                    "failed",
+                    {"error": str(exc), "elapsed_ms": elapsed_ms, "label": node_label},
+                )
             raise WorkflowExecutionError(
                 f"Node {node_id} ({node_type}) failed: {exc}"
             ) from exc
