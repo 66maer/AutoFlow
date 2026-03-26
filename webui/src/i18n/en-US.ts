@@ -20,7 +20,7 @@ const enUS = {
 
   // Workflow List
   'workflows.title': 'Workflows',
-  'workflows.new': '+ New Workflow',
+  'workflows.new': 'New Workflow',
   'workflows.empty': 'No workflows yet. Create one to get started.',
   'workflows.nodes': '{count} nodes',
   'workflows.noDesc': 'No description',

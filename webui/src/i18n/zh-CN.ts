@@ -6,7 +6,7 @@ const zhCN = {
   'common.delete': '删除',
   'common.run': '运行',
   'common.stop': '停止',
-  'common.back': '← 返回',
+  'common.back': '返回',
   'common.refresh': '刷新',
   'common.loading': '加载中...',
   'common.enabled': '已启用',
@@ -20,7 +20,7 @@ const zhCN = {
 
   // Workflow List
   'workflows.title': '工作流',
-  'workflows.new': '+ 新建工作流',
+  'workflows.new': '新建工作流',
   'workflows.empty': '还没有工作流，点击新建开始吧。',
   'workflows.nodes': '{count} 个节点',
   'workflows.noDesc': '暂无描述',
@@ -211,7 +211,7 @@ const zhCN = {
   'logs.totalDuration': '总耗时',
   'logs.totalSteps': '总步骤',
   'logs.failedAt': '失败于',
-  'logs.backToList': '← 返回列表',
+  'logs.backToList': '返回列表',
   'logs.noSteps': '没有执行步骤记录',
 
   // Settings
