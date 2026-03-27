@@ -49,7 +49,7 @@ const NODE_CATEGORIES: NodeCategory[] = [
   {
     key: 'action',
     presets: [
-      { nodeType: 'click', defaultData: { click_mode: 'image' } },
+      { nodeType: 'mouse_action', defaultData: { click_mode: 'image', button: 'left', action: 'click' } },
       { nodeType: 'key_press' },
       { nodeType: 'type_text' },
       { nodeType: 'wait', defaultData: { ms: 1000 } },
@@ -82,15 +82,16 @@ const NODE_SPACING_Y = 100
 
 /** Quick-add rules: right-clicking a node shows "add after" options */
 const QUICK_ADD_MAP: Record<string, string[]> = {
-  capture: ['find_image', 'click', 'branch'],
-  find_image: ['click', 'branch', 'wait'],
-  click: ['wait', 'find_image', 'key_press'],
+  capture: ['find_image', 'mouse_action', 'branch'],
+  find_image: ['mouse_action', 'branch', 'wait'],
+  mouse_action: ['wait', 'find_image', 'key_press'],
+  click: ['wait', 'find_image', 'key_press'], // backward compat
   key_press: ['wait', 'type_text'],
   type_text: ['wait', 'key_press'],
-  wait: ['find_image', 'click', 'capture'],
-  combo: ['find_image', 'wait', 'click'],
-  branch: ['find_image', 'click', 'capture'],
-  loop: ['find_image', 'click', 'wait'],
+  wait: ['find_image', 'mouse_action', 'capture'],
+  combo: ['find_image', 'wait', 'mouse_action'],
+  branch: ['find_image', 'mouse_action', 'capture'],
+  loop: ['find_image', 'mouse_action', 'wait'],
 }
 
 interface CtxMenuState {
@@ -149,6 +150,20 @@ function WorkflowEditorInner() {
   const [saving, setSaving] = useState(false)
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null)
   const [spaceHeld, setSpaceHeld] = useState(false)
+  const [autoConnectEnabled, setAutoConnectEnabled] = useState(true)
+  const [edgeInsertEnabled, setEdgeInsertEnabled] = useState(true)
+  /** Ghost edge shown during palette drag for auto-connect / edge-insert preview */
+  const [ghostEdges, setGhostEdges] = useState<{ from: { x: number; y: number }; to: { x: number; y: number }; type: 'connect' | 'insert' }[]>([])
+  /** Throttle palette drag preview updates */
+  const lastDragPosRef = useRef<{ x: number; y: number } | null>(null)
+
+  const [magnetEnabled, setMagnetEnabled] = useState(true)
+  /**
+   * Snap groups: maps nodeId → partnerId for snapped pairs.
+   * If A snaps to B: snapGroups has A→B and B→A.
+   * The "top" node (smaller y) is the source; "bottom" is target.
+   */
+  const [snapGroups, setSnapGroups] = useState<Map<string, string>>(new Map())
 
   const clipboardRef = useRef<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -176,6 +191,7 @@ function WorkflowEditorInner() {
       const loaded: Node[] = (wf.nodes || []).map((n: Record<string, any>) => {
         let nt = n.data?.nodeType || n.type
         if (nt === 'condition') nt = 'branch' // backward compat
+        if (nt === 'click') nt = 'mouse_action' // backward compat
         return {
           id: n.id,
           position: n.position || { x: 0, y: 0 },
@@ -191,11 +207,11 @@ function WorkflowEditorInner() {
   }, [id, setNodes, setEdges, takeSnapshot])
 
   // ---- Wrapped change handlers that snapshot before mutations ----
+  const snapGroupsRef = useRef(snapGroups)
+  snapGroupsRef.current = snapGroups
+
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      const hasMutation = changes.some(
-        (c) => c.type === 'remove' || c.type === 'position' || c.type === 'dimensions',
-      )
       // Only snapshot for position start (drag start)
       const hasDragStart = changes.some(
         (c) => c.type === 'position' && c.dragging === true,
@@ -203,7 +219,34 @@ function WorkflowEditorInner() {
       if (hasDragStart) {
         pushSnapshot()
       }
-      onNodesChange(changes)
+
+      // Snap group: propagate position changes to partner nodes
+      const posChanges = changes.filter(
+        (c): c is NodeChange & { type: 'position'; id: string; position?: { x: number; y: number }; dragging?: boolean } =>
+          c.type === 'position' && !!(c as any).position && (c as any).dragging,
+      )
+      const extraChanges: NodeChange[] = []
+      const currentSnap = snapGroupsRef.current
+      for (const pc of posChanges) {
+        const partnerId = currentSnap.get(pc.id)
+        if (!partnerId) continue
+        // Already being dragged? skip
+        if (changes.some((c) => c.type === 'position' && (c as any).id === partnerId)) continue
+        const draggedNode = nodesRef.current.find((n) => n.id === pc.id)
+        const partnerNode = nodesRef.current.find((n) => n.id === partnerId)
+        if (!draggedNode || !partnerNode || !pc.position) continue
+        // Maintain relative offset
+        const dx = pc.position.x - draggedNode.position.x
+        const dy = pc.position.y - draggedNode.position.y
+        extraChanges.push({
+          type: 'position',
+          id: partnerId,
+          position: { x: partnerNode.position.x + dx, y: partnerNode.position.y + dy },
+          dragging: true,
+        } as any)
+      }
+
+      onNodesChange([...changes, ...extraChanges])
     },
     [onNodesChange, pushSnapshot],
   )
@@ -264,21 +307,33 @@ function WorkflowEditorInner() {
     [setNodes, pushSnapshot],
   )
 
+  // Counter for offset when adding nodes to avoid overlap
+  const addCountRef = useRef(0)
+
   // ---- Add node ----
   const addNode = useCallback((nodeType: string, position?: { x: number; y: number }) => {
     pushSnapshot()
-    const currentNodes = nodesRef.current
-    const lastNode = currentNodes.length > 0
-      ? currentNodes.reduce((a, b) =>
-          (a.position.y > b.position.y) ? a : (a.position.y === b.position.y && a.position.x >= b.position.x) ? a : b
-        )
-      : null
 
-    const newPosition = position
-      ? position
-      : lastNode
-        ? { x: lastNode.position.x, y: lastNode.position.y + NODE_SPACING_Y }
-        : { x: 250, y: 80 }
+    let newPosition: { x: number; y: number }
+    if (position) {
+      // Explicit position (e.g., from context menu)
+      newPosition = position
+    } else {
+      // Place at viewport center with spiral offset to avoid overlap
+      const viewport = reactFlowInstance.getViewport()
+      const wrapperBounds = wrapperRef.current?.getBoundingClientRect()
+      const w = wrapperBounds?.width || 800
+      const h = wrapperBounds?.height || 600
+      const center = reactFlowInstance.screenToFlowPosition({
+        x: w / 2,
+        y: h / 2,
+      })
+      // Spiral offset: each successive add shifts by 30px right and 30px down
+      const count = addCountRef.current++
+      const offsetX = (count % 5) * 30
+      const offsetY = Math.floor(count / 5) * 30
+      newPosition = { x: center.x + offsetX - 60, y: center.y + offsetY - 60 }
+    }
 
     const defaultData: Record<string, unknown> = { nodeType, ...DEFAULT_DATA_MAP[nodeType] }
 
@@ -290,16 +345,8 @@ function WorkflowEditorInner() {
     }
 
     setNodes((nds) => [...nds, newNode])
-
-    if (lastNode && !position) {
-      const newEdge: Edge = {
-        id: `e_${lastNode.id}_${newNode.id}`,
-        source: lastNode.id,
-        target: newNode.id,
-      }
-      setEdges((eds) => [...eds, newEdge])
-    }
-  }, [pushSnapshot, setNodes, setEdges])
+    // No auto-connect — user manually connects or uses drag proximity
+  }, [pushSnapshot, setNodes, reactFlowInstance])
 
   /** Add a node after a specific source node */
   const addNodeAfter = useCallback((sourceNodeId: string, nodeType: string) => {
@@ -356,6 +403,148 @@ function WorkflowEditorInner() {
       setSelectedNode(null)
     }
   }, [selectedNode, pushSnapshot, setNodes, setEdges])
+
+  // ---- Drag auto-connect / edge-insert preview ----
+  const NODE_HALF_W = 70
+  const NODE_HALF_H = 25
+  const CONNECT_THRESHOLD = 60
+
+  /** Find the edge closest to a position, if within threshold */
+  const findEdgeAtPosition = useCallback(
+    (pos: { x: number; y: number }): Edge | null => {
+      const THRESHOLD_X = 80
+      const THRESHOLD_Y = 20
+      const currentNodes = nodesRef.current
+      const currentEdges = edgesRef.current
+
+      let bestEdge: Edge | null = null
+      let bestDist = Infinity
+
+      for (const edge of currentEdges) {
+        const srcNode = currentNodes.find((n) => n.id === edge.source)
+        const tgtNode = currentNodes.find((n) => n.id === edge.target)
+        if (!srcNode || !tgtNode) continue
+
+        const sx = srcNode.position.x + 70
+        const sy = srcNode.position.y + 30
+        const tx = tgtNode.position.x + 70
+        const ty = tgtNode.position.y + 30
+
+        const minY = Math.min(sy, ty) + THRESHOLD_Y
+        const maxY = Math.max(sy, ty) - THRESHOLD_Y
+        if (pos.y < minY || pos.y > maxY) continue
+
+        const midX = (sx + tx) / 2
+        const dx = Math.abs(pos.x - midX)
+        if (dx > THRESHOLD_X) continue
+
+        const dist = Math.hypot(pos.x - midX, pos.y - (sy + ty) / 2)
+        if (dist < bestDist) {
+          bestDist = dist
+          bestEdge = edge
+        }
+      }
+
+      return bestEdge
+    },
+    [],
+  )
+
+
+  /** Check if a node has only a single default output handle (no branch/loop/timeout) */
+  const isSingleOutput = useCallback((nodeId: string) => {
+    const node = nodesRef.current.find((n) => n.id === nodeId)
+    if (!node) return false
+    const nt = (node.data as any).nodeType || ''
+    // Branch, loop, timeout-enabled find_image have multiple outputs
+    if (nt === 'branch' || nt === 'condition' || nt === 'loop') return false
+    if (nt === 'find_image' && (node.data as any).timeout_enabled) return false
+    return true
+  }, [])
+
+  const isSingleInput = useCallback((nodeId: string) => {
+    const node = nodesRef.current.find((n) => n.id === nodeId)
+    if (!node) return false
+    const nt = (node.data as any).nodeType || ''
+    // Loop has loop_back + default input
+    if (nt === 'loop') return false
+    return true
+  }, [])
+
+  const SNAP_THRESHOLD = 15 // px distance for magnet snap
+
+  const onNodeDragStop = useCallback((_: React.MouseEvent, dragNode: Node) => {
+    // Magnet snap detection
+    if (!magnetEnabled) return
+    // Don't snap if already snapped
+    if (snapGroupsRef.current.has(dragNode.id)) return
+
+    const dragCx = dragNode.position.x + NODE_HALF_W
+    const dragBottom = dragNode.position.y + NODE_HALF_H * 2
+    const dragTop = dragNode.position.y
+
+    for (const n of nodesRef.current) {
+      if (n.id === dragNode.id) continue
+      if (snapGroupsRef.current.has(n.id)) continue
+
+      const ncx = n.position.x + NODE_HALF_W
+      const nBottom = n.position.y + NODE_HALF_H * 2
+      const nTop = n.position.y
+      const dx = Math.abs(dragCx - ncx)
+
+      // Check: drag node below n (n is source, drag is target)
+      if (dx < SNAP_THRESHOLD && Math.abs(dragTop - nBottom) < SNAP_THRESHOLD) {
+        if (isSingleOutput(n.id) && isSingleInput(dragNode.id)) {
+          // Snap: align drag node directly below n
+          const snapPos = { x: n.position.x, y: nBottom }
+          setNodes((nds) => nds.map((nd) =>
+            nd.id === dragNode.id ? { ...nd, position: snapPos } : nd
+          ))
+          // Auto-connect if no edge exists
+          const edgeExists = edgesRef.current.some((e) => e.source === n.id && e.target === dragNode.id)
+          if (!edgeExists) {
+            setEdges((eds) => [...eds, {
+              id: `e_${n.id}_${dragNode.id}`,
+              source: n.id,
+              target: dragNode.id,
+            }])
+          }
+          setSnapGroups((prev) => {
+            const next = new Map(prev)
+            next.set(n.id, dragNode.id)
+            next.set(dragNode.id, n.id)
+            return next
+          })
+          return
+        }
+      }
+
+      // Check: drag node above n (drag is source, n is target)
+      if (dx < SNAP_THRESHOLD && Math.abs(nTop - dragBottom) < SNAP_THRESHOLD) {
+        if (isSingleOutput(dragNode.id) && isSingleInput(n.id)) {
+          const snapPos = { x: n.position.x, y: nTop - NODE_HALF_H * 2 }
+          setNodes((nds) => nds.map((nd) =>
+            nd.id === dragNode.id ? { ...nd, position: snapPos } : nd
+          ))
+          const edgeExists = edgesRef.current.some((e) => e.source === dragNode.id && e.target === n.id)
+          if (!edgeExists) {
+            setEdges((eds) => [...eds, {
+              id: `e_${dragNode.id}_${n.id}`,
+              source: dragNode.id,
+              target: n.id,
+            }])
+          }
+          setSnapGroups((prev) => {
+            const next = new Map(prev)
+            next.set(dragNode.id, n.id)
+            next.set(n.id, dragNode.id)
+            return next
+          })
+          return
+        }
+      }
+    }
+  }, [magnetEnabled, setEdges, setNodes, isSingleOutput, isSingleInput])
 
   // ---- Clipboard ----
   const getSelectedNodes = useCallback(() => {
@@ -523,55 +712,114 @@ function WorkflowEditorInner() {
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-  }, [])
 
-  /** Find the edge closest to a drop position, if within threshold */
-  const findEdgeAtPosition = useCallback(
-    (pos: { x: number; y: number }): Edge | null => {
-      const THRESHOLD_X = 80
-      const THRESHOLD_Y = 20
-      const currentNodes = nodesRef.current
-      const currentEdges = edgesRef.current
+    if (!autoConnectEnabled && !edgeInsertEnabled) {
+      setGhostEdges([])
+      return
+    }
 
-      let bestEdge: Edge | null = null
+    const clientX = e.clientX
+    const clientY = e.clientY
+
+    // Throttle: skip if cursor barely moved
+    if (lastDragPosRef.current) {
+      const ddx = Math.abs(clientX - lastDragPosRef.current.x)
+      const ddy = Math.abs(clientY - lastDragPosRef.current.y)
+      if (ddx < 4 && ddy < 4) return
+    }
+    lastDragPosRef.current = { x: clientX, y: clientY }
+
+    const bounds = wrapperRef.current?.getBoundingClientRect()
+    if (!bounds) return
+
+    // Cursor position relative to wrapper (for SVG rendering)
+    const cursorWX = clientX - bounds.left
+    const cursorWY = clientY - bounds.top
+
+    // Flow position of cursor (for proximity checks)
+    const flowPos = reactFlowInstance.screenToFlowPosition({ x: cursorWX, y: cursorWY })
+
+    // Helper: flow coords → wrapper-relative screen coords
+    const viewport = reactFlowInstance.getViewport()
+    const flowToWrapper = (fx: number, fy: number) => ({
+      x: fx * viewport.zoom + viewport.x,
+      y: fy * viewport.zoom + viewport.y,
+    })
+
+    const currentNodes = nodesRef.current
+    const dragCx = flowPos.x + NODE_HALF_W
+    const dragCy = flowPos.y + NODE_HALF_H
+
+    // 1. Check edge insertion first (higher priority)
+    if (edgeInsertEnabled) {
+      const hitEdge = findEdgeAtPosition(flowPos)
+      if (hitEdge) {
+        const srcNode = currentNodes.find((n) => n.id === hitEdge.source)
+        const tgtNode = currentNodes.find((n) => n.id === hitEdge.target)
+        if (srcNode && tgtNode) {
+          const srcPt = flowToWrapper(srcNode.position.x + NODE_HALF_W, srcNode.position.y + NODE_HALF_H * 2)
+          const tgtPt = flowToWrapper(tgtNode.position.x + NODE_HALF_W, tgtNode.position.y)
+          setGhostEdges([
+            { from: srcPt, to: { x: cursorWX, y: cursorWY }, type: 'insert' },
+            { from: { x: cursorWX, y: cursorWY }, to: tgtPt, type: 'insert' },
+          ])
+          return
+        }
+      }
+    }
+
+    // 2. Check auto-connect proximity
+    if (autoConnectEnabled) {
+      let bestNode: Node | null = null
       let bestDist = Infinity
+      let bestDir: 'above' | 'below' = 'below'
 
-      for (const edge of currentEdges) {
-        const srcNode = currentNodes.find((n) => n.id === edge.source)
-        const tgtNode = currentNodes.find((n) => n.id === edge.target)
-        if (!srcNode || !tgtNode) continue
+      for (const n of currentNodes) {
+        const ncx = n.position.x + NODE_HALF_W
+        const ncy = n.position.y + NODE_HALF_H
+        const dx = Math.abs(dragCx - ncx)
+        const dy = Math.abs(dragCy - ncy)
 
-        // Approximate node center (assume ~70px half-width, ~30px half-height)
-        const sx = srcNode.position.x + 70
-        const sy = srcNode.position.y + 30
-        const tx = tgtNode.position.x + 70
-        const ty = tgtNode.position.y + 30
+        if (dx > CONNECT_THRESHOLD * 1.5) continue
+        if (dy < 30 || dy > 150) continue
 
-        const minY = Math.min(sy, ty) + THRESHOLD_Y
-        const maxY = Math.max(sy, ty) - THRESHOLD_Y
-        if (pos.y < minY || pos.y > maxY) continue
-
-        // Check horizontal proximity to the line between source and target
-        const midX = (sx + tx) / 2
-        const dx = Math.abs(pos.x - midX)
-        if (dx > THRESHOLD_X) continue
-
-        // Use distance to midpoint as ranking
-        const dist = Math.hypot(pos.x - midX, pos.y - (sy + ty) / 2)
+        const dist = Math.hypot(dx, dy)
         if (dist < bestDist) {
           bestDist = dist
-          bestEdge = edge
+          bestNode = n
+          bestDir = ncy < dragCy ? 'above' : 'below'
         }
       }
 
-      return bestEdge
-    },
-    [],
-  )
+      if (bestNode && bestDist < 150) {
+        const bcx = bestNode.position.x + NODE_HALF_W
+        const bcy = bestNode.position.y + NODE_HALF_H
+
+        if (bestDir === 'above') {
+          const fromPt = flowToWrapper(bcx, bcy + NODE_HALF_H)
+          setGhostEdges([{ from: fromPt, to: { x: cursorWX, y: cursorWY }, type: 'connect' }])
+        } else {
+          const toPt = flowToWrapper(bcx, bcy - NODE_HALF_H)
+          setGhostEdges([{ from: { x: cursorWX, y: cursorWY }, to: toPt, type: 'connect' }])
+        }
+        return
+      }
+    }
+
+    setGhostEdges([])
+  }, [autoConnectEnabled, edgeInsertEnabled, reactFlowInstance, findEdgeAtPosition])
+
+  const onDragLeave = useCallback(() => {
+    setGhostEdges([])
+    lastDragPosRef.current = null
+  }, [])
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
+      setGhostEdges([])
+      lastDragPosRef.current = null
+
       const nodeType = e.dataTransfer.getData('application/reactflow-nodetype')
       if (!nodeType) return
 
@@ -591,32 +839,78 @@ function WorkflowEditorInner() {
       }
 
       // Check if dropped on an edge → auto-insert
-      const hitEdge = findEdgeAtPosition(position)
-      if (hitEdge) {
-        setNodes((nds) => [...nds, newNode])
-        setEdges((eds) => {
-          const filtered = eds.filter((e) => e.id !== hitEdge.id)
-          return [
-            ...filtered,
-            {
-              id: `e_${hitEdge.source}_${newNode.id}`,
-              source: hitEdge.source,
-              target: newNode.id,
-              sourceHandle: hitEdge.sourceHandle,
-            } as Edge,
-            {
-              id: `e_${newNode.id}_${hitEdge.target}`,
-              source: newNode.id,
-              target: hitEdge.target,
-              targetHandle: hitEdge.targetHandle,
-            } as Edge,
-          ]
-        })
-      } else {
-        setNodes((nds) => [...nds, newNode])
+      if (edgeInsertEnabled) {
+        const hitEdge = findEdgeAtPosition(position)
+        if (hitEdge) {
+          setNodes((nds) => [...nds, newNode])
+          setEdges((eds) => {
+            const filtered = eds.filter((e) => e.id !== hitEdge.id)
+            return [
+              ...filtered,
+              {
+                id: `e_${hitEdge.source}_${newNode.id}`,
+                source: hitEdge.source,
+                target: newNode.id,
+                sourceHandle: hitEdge.sourceHandle,
+              } as Edge,
+              {
+                id: `e_${newNode.id}_${hitEdge.target}`,
+                source: newNode.id,
+                target: hitEdge.target,
+                targetHandle: hitEdge.targetHandle,
+              } as Edge,
+            ]
+          })
+          return
+        }
+      }
+
+      setNodes((nds) => [...nds, newNode])
+
+      // Auto-connect: find nearest node to the drop position
+      if (autoConnectEnabled) {
+        const currentNodes = nodesRef.current
+        const currentEdges = edgesRef.current
+        const dragCx = position.x + NODE_HALF_W
+        const dragCy = position.y + NODE_HALF_H
+
+        let bestNode: Node | null = null
+        let bestDist = Infinity
+        let bestDir: 'above' | 'below' = 'below'
+
+        for (const n of currentNodes) {
+          const ncx = n.position.x + NODE_HALF_W
+          const ncy = n.position.y + NODE_HALF_H
+          const dx = Math.abs(dragCx - ncx)
+          const dy = Math.abs(dragCy - ncy)
+
+          if (dx > CONNECT_THRESHOLD * 1.5) continue
+          if (dy < 30 || dy > 150) continue
+
+          const dist = Math.hypot(dx, dy)
+          if (dist < bestDist) {
+            bestDist = dist
+            bestNode = n
+            bestDir = ncy < dragCy ? 'above' : 'below'
+          }
+        }
+
+        if (bestNode && bestDist < 150) {
+          const sourceId = bestDir === 'above' ? bestNode.id : newNode.id
+          const targetId = bestDir === 'above' ? newNode.id : bestNode.id
+
+          const exists = currentEdges.some((e) => e.source === sourceId && e.target === targetId)
+          if (!exists && !wouldCreateCycle(sourceId, targetId, null, currentEdges, currentNodes)) {
+            setEdges((eds) => [...eds, {
+              id: `e_${sourceId}_${targetId}`,
+              source: sourceId,
+              target: targetId,
+            }])
+          }
+        }
       }
     },
-    [reactFlowInstance, pushSnapshot, setNodes, setEdges, findEdgeAtPosition],
+    [reactFlowInstance, pushSnapshot, setNodes, setEdges, findEdgeAtPosition, autoConnectEnabled, edgeInsertEnabled],
   )
 
   // ---- Context menus ----
@@ -628,11 +922,35 @@ function WorkflowEditorInner() {
       const nodeType = (node.data as any).nodeType as string
       const quickAddTypes = QUICK_ADD_MAP[nodeType] || ALL_NODE_TYPES
 
+      const isSnapped = snapGroups.has(node.id)
+
       const items: MenuEntry[] = [
+        ...(isSnapped ? [{
+          label: t('ctx.unsnap' as any),
+          onClick: () => {
+            const partnerId = snapGroups.get(node.id)
+            setSnapGroups((prev) => {
+              const next = new Map(prev)
+              next.delete(node.id)
+              if (partnerId) next.delete(partnerId)
+              return next
+            })
+          },
+        }, { separator: true } as MenuEntry] : []),
         { label: t('ctx.copy'), shortcut: 'Ctrl+C', onClick: () => { setSelectedNode(node); copySelected() } },
         { label: t('ctx.cut'), shortcut: 'Ctrl+X', onClick: () => { setSelectedNode(node); cutSelected() } },
         { label: t('ctx.delete'), shortcut: 'Del', onClick: () => {
           pushSnapshot()
+          // Also unsnap partner
+          const partnerId = snapGroups.get(node.id)
+          if (partnerId) {
+            setSnapGroups((prev) => {
+              const next = new Map(prev)
+              next.delete(node.id)
+              next.delete(partnerId)
+              return next
+            })
+          }
           setNodes((nds) => nds.filter((n) => n.id !== node.id))
           setEdges((eds) => eds.filter((ed) => ed.source !== node.id && ed.target !== node.id))
           setSelectedNode(null)
@@ -702,7 +1020,7 @@ function WorkflowEditorInner() {
     setSaving(true)
     try {
       const saveNodes = nodes.map((n) => {
-        const nt = (n.data as Record<string, any>).nodeType || 'click'
+        const nt = (n.data as Record<string, any>).nodeType || 'mouse_action'
         return {
           id: n.id,
           type: nt,
@@ -799,6 +1117,35 @@ function WorkflowEditorInner() {
               ))}
             </div>
           ))}
+          <div className="palette-toggles">
+            <button
+              className={`palette-toggle ${autoConnectEnabled ? 'active' : ''}`}
+              onClick={() => setAutoConnectEnabled((v) => !v)}
+              title={t('editor.autoConnect' as any)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="6" cy="6" r="3" /><circle cx="18" cy="18" r="3" /><path d="M9 6h6a3 3 0 0 1 3 3v6" />
+              </svg>
+            </button>
+            <button
+              className={`palette-toggle ${edgeInsertEnabled ? 'active' : ''}`}
+              onClick={() => setEdgeInsertEnabled((v) => !v)}
+              title={t('editor.edgeInsert' as any)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="2" x2="12" y2="22" /><line x1="2" y1="12" x2="22" y2="12" />
+              </svg>
+            </button>
+            <button
+              className={`palette-toggle ${magnetEnabled ? 'active' : ''}`}
+              onClick={() => setMagnetEnabled((v) => !v)}
+              title={t('editor.magnet' as any)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 8V4h4v4a4 4 0 0 0 8 0V4h4v4a8 8 0 0 1-16 0z" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <ReactFlow
@@ -812,8 +1159,10 @@ function WorkflowEditorInner() {
           onNodeContextMenu={onNodeContextMenu}
           onEdgeContextMenu={onEdgeContextMenu}
           onPaneContextMenu={onPaneContextMenu}
+          onNodeDragStop={onNodeDragStop}
           onDrop={onDrop}
           onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 } }}
           fitView
@@ -836,6 +1185,29 @@ function WorkflowEditorInner() {
           <Background />
         </ReactFlow>
 
+        {/* Ghost edge preview during palette drag (wrapper-relative screen coords) */}
+        {ghostEdges.length > 0 && (
+          <svg className="ghost-edge-layer">
+            <defs>
+              <marker id="ghost-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill={ghostEdges[0].type === 'insert' ? '#e76f51' : 'var(--primary)'} fillOpacity="0.6" />
+              </marker>
+            </defs>
+            {ghostEdges.map((ge, i) => (
+              <line
+                key={i}
+                x1={ge.from.x} y1={ge.from.y}
+                x2={ge.to.x} y2={ge.to.y}
+                stroke={ge.type === 'insert' ? '#e76f51' : 'var(--primary)'}
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                strokeOpacity={0.6}
+                markerEnd="url(#ghost-arrow)"
+              />
+            ))}
+          </svg>
+        )}
+
         {ctxMenu && (
           <ContextMenu
             x={ctxMenu.x}
@@ -845,16 +1217,41 @@ function WorkflowEditorInner() {
           />
         )}
 
-        {selectedNode && (
-          <NodeConfigPanel
-            node={selectedNode}
-            nodes={nodes}
-            edges={edges}
-            onChange={handleNodeDataChange}
-            onClose={() => setSelectedNode(null)}
-            onDelete={handleDeleteNode}
-          />
-        )}
+        {selectedNode && (() => {
+          const partnerId = snapGroups.get(selectedNode.id)
+          const partnerNode = partnerId ? nodes.find((n) => n.id === partnerId) : null
+          // Order: top node first (smaller y)
+          const topNode = partnerNode && partnerNode.position.y < selectedNode.position.y ? partnerNode : selectedNode
+          const bottomNode = partnerNode && partnerNode.position.y < selectedNode.position.y ? selectedNode : partnerNode
+
+          return (
+            <div className="node-config-panel">
+              <NodeConfigPanel
+                node={topNode}
+                nodes={nodes}
+                edges={edges}
+                onChange={handleNodeDataChange}
+                onClose={() => setSelectedNode(null)}
+                onDelete={handleDeleteNode}
+                embedded
+              />
+              {bottomNode && (
+                <>
+                  <div className="config-snap-divider" />
+                  <NodeConfigPanel
+                    node={bottomNode}
+                    nodes={nodes}
+                    edges={edges}
+                    onChange={handleNodeDataChange}
+                    onClose={() => setSelectedNode(null)}
+                    onDelete={handleDeleteNode}
+                    embedded
+                  />
+                </>
+              )}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

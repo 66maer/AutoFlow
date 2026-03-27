@@ -23,6 +23,7 @@ function getNodeCategory(nodeType: string): string {
     case 'capture':
       return 'sensor'
     case 'click':
+    case 'mouse_action':
     case 'key_press':
     case 'type_text':
     case 'wait':
@@ -41,7 +42,8 @@ function getNodeIcon(nodeType: string): ComponentType<SVGProps<SVGSVGElement>> {
   switch (nodeType) {
     case 'find_image': return MagnifyingGlassIcon
     case 'capture': return CameraIcon
-    case 'click': return CursorArrowRaysIcon
+    case 'click':
+    case 'mouse_action': return CursorArrowRaysIcon
     case 'key_press': return CommandLineIcon
     case 'combo': return LinkIcon
     case 'type_text': return PencilIcon
@@ -67,7 +69,18 @@ export default function FlowNode({ data, type }: NodeProps) {
   // Build detail text
   let detail = ''
   switch (nodeType) {
-    case 'click': {
+    case 'click':
+    case 'mouse_action': {
+      const action = (data.action as string) || 'click'
+      const btn = (data.button as string) || 'left'
+
+      // Scroll actions
+      if (btn === 'middle' && (action === 'scroll_up' || action === 'scroll_down')) {
+        detail = t(`node.mouse_action.${action}` as any, { amount: String(data.scroll_amount || 3) })
+        break
+      }
+
+      // Click / double-click
       const mode = (data.click_mode as string) || 'image'
       if (mode === 'image') {
         const ox = Number(data.offset_x || 0)
@@ -82,8 +95,8 @@ export default function FlowNode({ data, type }: NodeProps) {
       } else {
         detail = t('node.click.window')
       }
-      const btn = (data.button as string) || 'left'
-      if (btn !== 'left') detail += ` [${t(`node.click.${btn}` as any)}]`
+      if (action === 'double_click') detail = t('node.mouse_action.double_click') + ' ' + detail
+      if (btn !== 'left' && action !== 'scroll_up' && action !== 'scroll_down') detail += ` [${t(`node.click.${btn}` as any) || btn}]`
       break
     }
     case 'key_press': {

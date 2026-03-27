@@ -31,6 +31,8 @@ const enUS = {
   'editor.repeatCount': 'Repeat Count',
   'editor.repeatForever': 'Loop Forever',
   'editor.nodeList': 'Nodes',
+  'editor.autoConnect': 'Auto-connect on drag proximity',
+  'editor.edgeInsert': 'Insert into edge on drag',
 
   // Workflow List
   'workflows.globalStopKey': 'Global Stop Key',
@@ -50,7 +52,8 @@ const enUS = {
   'node.capture': 'Capture',
   'node.find_image': 'Find Image',
   'node.click': 'Click',
-  'node.key_press': 'Key Press',
+  'node.mouse_action': 'Mouse',
+  'node.key_press': 'Keyboard',
   'node.type_text': 'Type Text',
   'node.wait': 'Wait',
   'node.condition': 'Condition',
@@ -62,6 +65,9 @@ const enUS = {
   'node.click.image.offset': 'Click image (offset {x},{y})',
   'node.click.coord': 'At ({x}, {y})',
   'node.click.window': 'Relative to window',
+  'node.mouse_action.scroll_up': 'Scroll up {amount}',
+  'node.mouse_action.scroll_down': 'Scroll down {amount}',
+  'node.mouse_action.double_click': 'Double click',
   'node.find_image.paste': 'Paste or select image',
   'node.find_image.timeout': 'Timeout {ms}ms',
   'node.wait.detail': 'Wait {ms}ms',
@@ -75,8 +81,8 @@ const enUS = {
   'node.click.right': 'Right',
   'node.click.middle': 'Middle',
 
-  // Node Config Panel - Click
-  'config.clickMode': 'Click Mode',
+  // Node Config Panel - Mouse Action
+  'config.clickMode': 'Position Mode',
   'config.clickMode.image': 'Image position (center)',
   'config.clickMode.coord': 'Coordinates',
   'config.clickMode.window': 'Window mode',
@@ -89,10 +95,23 @@ const enUS = {
   'config.button.left': 'Left',
   'config.button.right': 'Right',
   'config.button.middle': 'Middle',
+  'config.button.side1': 'Side 1',
+  'config.button.side2': 'Side 2',
+  'config.mouseAction': 'Action',
+  'config.mouseAction.click': 'Click',
+  'config.mouseAction.double_click': 'Double Click',
+  'config.mouseAction.scroll_up': 'Scroll Up',
+  'config.mouseAction.scroll_down': 'Scroll Down',
+  'config.scrollAmount': 'Scroll Amount',
+  'config.sourceVar': 'Target Source',
+  'config.sourceVar.lastMatch': 'Last match result',
   'config.offsetX': 'X Offset',
   'config.offsetY': 'Y Offset',
   'config.windowTitle': 'Window Title',
   'config.windowTitle.placeholder': 'Window title keyword',
+  'config.pickCoord': 'Pick from desktop',
+  'config.pickWindow': 'Pick from window',
+  'config.picking': 'Picking...',
 
   // Node Config Panel - General
   'config.key': 'Key',
@@ -183,6 +202,8 @@ const enUS = {
   'ctx.redo': 'Redo',
   'ctx.add': 'Add',
   'ctx.addAfter': 'Add after:',
+  'ctx.unsnap': 'Unsnap nodes',
+  'editor.magnet': 'Magnet snap',
 
   // Logs
   'logs.title': 'Execution Logs',

@@ -295,11 +295,8 @@ class WorkflowEngine:
                 }
             return {"found": False}
 
-        elif node_type == "click":
-            x, y = self._resolve_click(data, ctx)
-            button = data.get("button", "left")
-            self._input.click(int(x), int(y), button=button)
-            return {"clicked": True, "x": x, "y": y}
+        elif node_type in ("click", "mouse_action"):
+            return await self._execute_mouse_action(data, ctx)
 
         elif node_type == "key_press":
             # Support combo keys: "ctrl+a" → hold modifiers, press main, release
@@ -421,6 +418,31 @@ class WorkflowEngine:
             if text:
                 self._input.type_text(text)
 
+    async def _execute_mouse_action(
+        self,
+        data: dict[str, Any],
+        ctx: ExecutionContext,
+    ) -> dict[str, Any]:
+        """Execute mouse_action node: click / double_click / scroll."""
+        x, y = self._resolve_click(data, ctx)
+        button = data.get("button", "left")
+        action = data.get("action", "click")
+
+        if button == "middle" and action in ("scroll_up", "scroll_down"):
+            amount = int(data.get("scroll_amount", 3))
+            if action == "scroll_down":
+                amount = -amount
+            self._input.scroll(int(x), int(y), amount)
+            return {"scrolled": True, "x": x, "y": y, "amount": amount}
+
+        if action == "double_click":
+            self._input.double_click(int(x), int(y))
+            return {"clicked": True, "x": x, "y": y, "action": "double_click"}
+
+        # Default: single click
+        self._input.click(int(x), int(y), button=button)
+        return {"clicked": True, "x": x, "y": y, "button": button}
+
     def _resolve_click(
         self,
         data: dict[str, Any],
@@ -447,19 +469,33 @@ class WorkflowEngine:
                 "Window mode not yet implemented"
             )
 
-        # mode == "image" (default): use last_match center
-        if ctx.last_match is None:
+        # mode == "image": use specified variable or last_match
+        match = self._resolve_match_var(data, ctx)
+        if match is None:
             raise WorkflowExecutionError(
                 "Image click requires a prior find_image match"
             )
-        cx = ctx.last_match.x + ctx.last_match.w // 2
-        cy = ctx.last_match.y + ctx.last_match.h // 2
+        cx = match.x + match.w // 2
+        cy = match.y + match.h // 2
 
         # Apply offset
         ox = data.get("offset_x", 0) or 0
         oy = data.get("offset_y", 0) or 0
         offset_type = data.get("offset_type", "px")
         if offset_type == "pct":
-            ox = int(ctx.last_match.w * ox / 100)
-            oy = int(ctx.last_match.h * oy / 100)
+            ox = int(match.w * ox / 100)
+            oy = int(match.h * oy / 100)
         return cx + int(ox), cy + int(oy)
+
+    def _resolve_match_var(
+        self,
+        data: dict[str, Any],
+        ctx: ExecutionContext,
+    ) -> Any:
+        """Resolve which match result to use: from a named variable or last_match."""
+        source_var = data.get("source_var", "")
+        if source_var:
+            match = ctx.variables.get(source_var)
+            if match is not None:
+                return match
+        return ctx.last_match

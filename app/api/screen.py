@@ -1,3 +1,4 @@
+import asyncio
 import base64
 
 import cv2
@@ -77,4 +78,35 @@ async def find_on_screen(template: UploadFile):
             )
             for r in results
         ]
+    )
+
+
+class PickCoordRequest(BaseModel):
+    mode: str = "free"  # "free" or "window"
+
+
+class PickCoordResponse(BaseModel):
+    x: int | None = None
+    y: int | None = None
+    window_title: str | None = None
+    window_hwnd: int | None = None
+    cancelled: bool = False
+
+
+@router.post("/pick-coord", response_model=PickCoordResponse)
+async def pick_coordinate(body: PickCoordRequest | None = None):
+    """Launch desktop overlay for coordinate picking."""
+    from app.engine.coord_picker import pick_coordinate as _pick
+
+    mode = body.mode if body else "free"
+    result = await asyncio.to_thread(_pick, mode)
+
+    if result is None:
+        return PickCoordResponse(cancelled=True)
+
+    return PickCoordResponse(
+        x=result.x,
+        y=result.y,
+        window_title=result.window_title,
+        window_hwnd=result.window_hwnd,
     )

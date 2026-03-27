@@ -31,6 +31,8 @@ const zhCN = {
   'editor.repeatCount': '执行次数',
   'editor.repeatForever': '无限循环',
   'editor.nodeList': '节点列表',
+  'editor.autoConnect': '拖拽靠近自动连线',
+  'editor.edgeInsert': '拖拽插入连线',
 
   // Workflow List
   'workflows.globalStopKey': '全局停止键',
@@ -50,7 +52,8 @@ const zhCN = {
   'node.capture': '截图',
   'node.find_image': '找图',
   'node.click': '点击',
-  'node.key_press': '按键',
+  'node.mouse_action': '鼠标操作',
+  'node.key_press': '键盘操作',
   'node.type_text': '输入文本',
   'node.wait': '等待',
   'node.condition': '条件判断',
@@ -62,6 +65,9 @@ const zhCN = {
   'node.click.image.offset': '点击图片 (偏移 {x},{y})',
   'node.click.coord': '坐标 ({x}, {y})',
   'node.click.window': '窗口相对位置',
+  'node.mouse_action.scroll_up': '上滚 {amount}',
+  'node.mouse_action.scroll_down': '下滚 {amount}',
+  'node.mouse_action.double_click': '双击',
   'node.find_image.paste': '粘贴或选择图片',
   'node.find_image.timeout': '超时 {ms}ms',
   'node.wait.detail': '等待 {ms}ms',
@@ -75,8 +81,8 @@ const zhCN = {
   'node.click.right': '右键',
   'node.click.middle': '中键',
 
-  // Node Config Panel - Click
-  'config.clickMode': '点击方式',
+  // Node Config Panel - Mouse Action
+  'config.clickMode': '定位方式',
   'config.clickMode.image': '图片位置（默认中心）',
   'config.clickMode.coord': '坐标位置',
   'config.clickMode.window': '窗口模式',
@@ -89,10 +95,23 @@ const zhCN = {
   'config.button.left': '左键',
   'config.button.right': '右键',
   'config.button.middle': '中键',
+  'config.button.side1': '侧键1',
+  'config.button.side2': '侧键2',
+  'config.mouseAction': '操作',
+  'config.mouseAction.click': '单击',
+  'config.mouseAction.double_click': '双击',
+  'config.mouseAction.scroll_up': '上滚',
+  'config.mouseAction.scroll_down': '下滚',
+  'config.scrollAmount': '滚动量',
+  'config.sourceVar': '目标来源',
+  'config.sourceVar.lastMatch': '最近一次找图结果',
   'config.offsetX': 'X 偏移',
   'config.offsetY': 'Y 偏移',
   'config.windowTitle': '窗口标题',
   'config.windowTitle.placeholder': '输入窗口标题关键词',
+  'config.pickCoord': '桌面取坐标',
+  'config.pickWindow': '选窗口取坐标',
+  'config.picking': '拾取中...',
 
   // Node Config Panel - General
   'config.key': '按键',
@@ -183,6 +202,8 @@ const zhCN = {
   'ctx.redo': '重做',
   'ctx.add': '添加',
   'ctx.addAfter': '后接',
+  'ctx.unsnap': '取消吸合',
+  'editor.magnet': '磁铁吸合',
 
   // Logs
   'logs.title': '执行日志',

@@ -63,6 +63,15 @@ export const templates = {
   delete: (templateId: string) => request<{ ok: boolean }>(`/templates/${templateId}`, { method: 'DELETE' }),
 }
 
+// Screen tools
+export const screen = {
+  pickCoord: (mode: 'free' | 'window' = 'free') =>
+    request<{ x: number | null; y: number | null; window_title: string | null; window_hwnd: number | null; cancelled: boolean }>(
+      '/screen/pick-coord',
+      { method: 'POST', body: JSON.stringify({ mode }) },
+    ),
+}
+
 // WebSocket
 export function connectLogStream(
   onMessage: (data: unknown) => void,

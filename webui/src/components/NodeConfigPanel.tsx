@@ -1,9 +1,10 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import { useI18n } from '../i18n'
 import TemplatePicker from './TemplatePicker'
 import KeyRecorder from './KeyRecorder'
 import { getUpstreamVariables, OPERATORS_FOR_TYPE, type VarField } from '../utils/variables'
+import { screen as screenApi } from '../api/client'
 
 interface Props {
   node: Node
@@ -12,6 +13,8 @@ interface Props {
   onChange: (id: string, data: Record<string, unknown>) => void
   onClose: () => void
   onDelete?: () => void
+  /** When true, renders without the outer wrapper div (used for snap-merged panels) */
+  embedded?: boolean
 }
 
 /** Combo step types */
@@ -26,12 +29,16 @@ interface ComboStep {
 
 const COMBO_ACTIONS = ['key_down', 'key_up', 'click', 'wait', 'type_text'] as const
 
-export default function NodeConfigPanel({ node, nodes, edges, onChange, onClose, onDelete }: Props) {
+export default function NodeConfigPanel({ node, nodes, edges, onChange, onClose, onDelete, embedded }: Props) {
   const { t } = useI18n()
   const nodeType = (node.data.nodeType as string) || node.type || ''
 
   const update = (key: string, value: unknown) => {
     onChange(node.id, { ...node.data, [key]: value })
+  }
+
+  const updateMultiple = (patches: Record<string, unknown>) => {
+    onChange(node.id, { ...node.data, ...patches })
   }
 
   const label = t(`node.${nodeType}` as any) || nodeType
@@ -88,115 +95,29 @@ export default function NodeConfigPanel({ node, nodes, edges, onChange, onClose,
     return OPERATORS_FOR_TYPE[vType] || OPERATORS_FOR_TYPE['boolean']
   }
 
-  return (
-    <div className="node-config-panel">
+  const content = (
+    <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3>{label}</h3>
         <div style={{ display: 'flex', gap: 4 }}>
-          {onDelete && (
+          {onDelete && !embedded && (
             <button className="danger" onClick={onDelete} style={{ padding: '2px 8px', fontSize: 12 }}>
               {t('common.delete')}
             </button>
           )}
-          <button className="ghost" onClick={onClose} style={{ padding: '2px 8px' }}>×</button>
+          {!embedded && <button className="ghost" onClick={onClose} style={{ padding: '2px 8px' }}>×</button>}
         </div>
       </div>
 
-      {/* ===== CLICK NODE ===== */}
-      {nodeType === 'click' && (
-        <>
-          <div className="config-field">
-            <label>{t('config.clickMode')}</label>
-            <select
-              value={String(node.data.click_mode || 'image')}
-              onChange={(e) => update('click_mode', e.target.value)}
-            >
-              <option value="image">{t('config.clickMode.image')}</option>
-              <option value="coord">{t('config.clickMode.coord')}</option>
-              <option value="window">{t('config.clickMode.window')}</option>
-            </select>
-          </div>
-
-          {(node.data.click_mode || 'image') === 'image' && (
-            <>
-              <div className="config-field">
-                <label>{t('config.offsetType')}</label>
-                <select
-                  value={String(node.data.offset_type || 'px')}
-                  onChange={(e) => update('offset_type', e.target.value)}
-                >
-                  <option value="px">{t('config.offsetType.px')}</option>
-                  <option value="pct">{t('config.offsetType.pct')}</option>
-                </select>
-              </div>
-              <div className="config-row">
-                <div className="config-field">
-                  <label>{t('config.offsetX')}</label>
-                  <input type="number" value={String(node.data.offset_x ?? 0)} onChange={(e) => update('offset_x', Number(e.target.value))} />
-                </div>
-                <div className="config-field">
-                  <label>{t('config.offsetY')}</label>
-                  <input type="number" value={String(node.data.offset_y ?? 0)} onChange={(e) => update('offset_y', Number(e.target.value))} />
-                </div>
-              </div>
-            </>
-          )}
-
-          {node.data.click_mode === 'coord' && (
-            <div className="config-row">
-              <div className="config-field">
-                <label>{t('config.x')}</label>
-                <input type="number" value={String(node.data.x ?? '')} onChange={(e) => update('x', e.target.value ? Number(e.target.value) : null)} />
-              </div>
-              <div className="config-field">
-                <label>{t('config.y')}</label>
-                <input type="number" value={String(node.data.y ?? '')} onChange={(e) => update('y', e.target.value ? Number(e.target.value) : null)} />
-              </div>
-            </div>
-          )}
-
-          {node.data.click_mode === 'window' && (
-            <>
-              <div className="config-field">
-                <label>{t('config.windowTitle')}</label>
-                <input
-                  value={String(node.data.window_title || '')}
-                  onChange={(e) => update('window_title', e.target.value)}
-                  placeholder={t('config.windowTitle.placeholder')}
-                />
-              </div>
-              <div className="config-field">
-                <label>{t('config.offsetType')}</label>
-                <select
-                  value={String(node.data.offset_type || 'px')}
-                  onChange={(e) => update('offset_type', e.target.value)}
-                >
-                  <option value="px">{t('config.offsetType.px')}</option>
-                  <option value="pct">{t('config.offsetType.pct')}</option>
-                </select>
-              </div>
-              <div className="config-row">
-                <div className="config-field">
-                  <label>{t('config.offsetX')}</label>
-                  <input type="number" value={String(node.data.offset_x ?? 0)} onChange={(e) => update('offset_x', Number(e.target.value))} />
-                </div>
-                <div className="config-field">
-                  <label>{t('config.offsetY')}</label>
-                  <input type="number" value={String(node.data.offset_y ?? 0)} onChange={(e) => update('offset_y', Number(e.target.value))} />
-                </div>
-              </div>
-            </>
-          )}
-
-          <div className="config-field">
-            <label>{t('config.button')}</label>
-            <select value={String(node.data.button || 'left')} onChange={(e) => update('button', e.target.value)}>
-              <option value="left">{t('config.button.left')}</option>
-              <option value="right">{t('config.button.right')}</option>
-              <option value="middle">{t('config.button.middle')}</option>
-            </select>
-          </div>
-        </>
+      {/* ===== MOUSE ACTION NODE (also handles legacy 'click') ===== */}
+      {(nodeType === 'mouse_action' || nodeType === 'click') && (
+        <MouseActionConfig
+          node={node}
+          update={update}
+          updateMultiple={updateMultiple}
+          upstreamVars={upstreamVars}
+          t={t}
+        />
       )}
 
       {/* ===== KEY PRESS ===== */}
@@ -473,7 +394,223 @@ export default function NodeConfigPanel({ node, nodes, edges, onChange, onClose,
           </div>
         </>
       )}
-    </div>
+    </>
+  )
+
+  if (embedded) return content
+  return <div className="node-config-panel">{content}</div>
+}
+
+/** Mouse action config: position + button + action + scroll amount */
+function MouseActionConfig({
+  node, update, updateMultiple, upstreamVars, t,
+}: {
+  node: Node
+  update: (key: string, value: unknown) => void
+  updateMultiple: (patches: Record<string, unknown>) => void
+  upstreamVars: VarField[]
+  t: (key: any, params?: Record<string, string>) => string
+}) {
+  const button = String(node.data.button || 'left')
+  const action = String(node.data.action || 'click')
+  const [picking, setPicking] = useState(false)
+  const isMiddle = button === 'middle'
+
+  // Available actions depend on button
+  const getActions = () => {
+    if (isMiddle) return ['click', 'double_click', 'scroll_up', 'scroll_down']
+    return ['click', 'double_click']
+  }
+  const actions = getActions()
+
+  // When button changes to non-middle, reset scroll actions
+  const handleButtonChange = (btn: string) => {
+    if (btn !== 'middle' && (action === 'scroll_up' || action === 'scroll_down')) {
+      updateMultiple({ button: btn, action: 'click' })
+    } else {
+      update('button', btn)
+    }
+  }
+
+  const isScroll = action === 'scroll_up' || action === 'scroll_down'
+
+  // Find upstream find_image variables for source_var dropdown
+  const matchVars = upstreamVars
+    .filter((v) => v.suffix === 'x' && v.sourceNodeType === 'find_image')
+    .map((v) => v.path.replace(/\.x$/, ''))
+  const uniqueMatchVars = [...new Set(matchVars)]
+
+  return (
+    <>
+      {/* Row 1: Button + Action */}
+      <div className="config-row">
+        <div className="config-field">
+          <label>{t('config.button')}</label>
+          <select value={button} onChange={(e) => handleButtonChange(e.target.value)}>
+            <option value="left">{t('config.button.left')}</option>
+            <option value="right">{t('config.button.right')}</option>
+            <option value="middle">{t('config.button.middle')}</option>
+            <option value="side1">{t('config.button.side1')}</option>
+            <option value="side2">{t('config.button.side2')}</option>
+          </select>
+        </div>
+        <div className="config-field">
+          <label>{t('config.mouseAction')}</label>
+          <select value={action} onChange={(e) => update('action', e.target.value)}>
+            {actions.map((a) => (
+              <option key={a} value={a}>{t(`config.mouseAction.${a}` as any)}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Scroll amount (only when scroll action selected) */}
+      {isScroll && (
+        <div className="config-field">
+          <label>{t('config.scrollAmount')}</label>
+          <input type="number" value={String(node.data.scroll_amount ?? 3)} min="1" onChange={(e) => update('scroll_amount', Number(e.target.value))} />
+        </div>
+      )}
+
+      <div className="config-separator" />
+
+      {/* Position mode */}
+      <div className="config-field">
+        <label>{t('config.clickMode')}</label>
+        <select
+          value={String(node.data.click_mode || 'image')}
+          onChange={(e) => update('click_mode', e.target.value)}
+        >
+          <option value="image">{t('config.clickMode.image')}</option>
+          <option value="coord">{t('config.clickMode.coord')}</option>
+          <option value="window">{t('config.clickMode.window')}</option>
+        </select>
+      </div>
+
+      {/* Image mode: source variable + offset */}
+      {(node.data.click_mode || 'image') === 'image' && (
+        <>
+          {uniqueMatchVars.length > 0 && (
+            <div className="config-field">
+              <label>{t('config.sourceVar')}</label>
+              <select
+                value={String(node.data.source_var || '')}
+                onChange={(e) => update('source_var', e.target.value)}
+              >
+                <option value="">{t('config.sourceVar.lastMatch')}</option>
+                {uniqueMatchVars.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="config-field">
+            <label>{t('config.offsetType')}</label>
+            <select
+              value={String(node.data.offset_type || 'px')}
+              onChange={(e) => update('offset_type', e.target.value)}
+            >
+              <option value="px">{t('config.offsetType.px')}</option>
+              <option value="pct">{t('config.offsetType.pct')}</option>
+            </select>
+          </div>
+          <div className="config-row">
+            <div className="config-field">
+              <label>{t('config.offsetX')}</label>
+              <input type="number" value={String(node.data.offset_x ?? 0)} onChange={(e) => update('offset_x', Number(e.target.value))} />
+            </div>
+            <div className="config-field">
+              <label>{t('config.offsetY')}</label>
+              <input type="number" value={String(node.data.offset_y ?? 0)} onChange={(e) => update('offset_y', Number(e.target.value))} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Coord mode */}
+      {node.data.click_mode === 'coord' && (
+        <>
+          <div className="config-row">
+            <div className="config-field">
+              <label>{t('config.x')}</label>
+              <input type="number" value={String(node.data.x ?? '')} onChange={(e) => update('x', e.target.value ? Number(e.target.value) : null)} />
+            </div>
+            <div className="config-field">
+              <label>{t('config.y')}</label>
+              <input type="number" value={String(node.data.y ?? '')} onChange={(e) => update('y', e.target.value ? Number(e.target.value) : null)} />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="ghost"
+            style={{ width: '100%', fontSize: 12, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            disabled={picking}
+            onClick={async () => {
+              setPicking(true)
+              try {
+                const res = await screenApi.pickCoord('free')
+                if (!res.cancelled && res.x != null && res.y != null) {
+                  updateMultiple({ x: res.x, y: res.y })
+                }
+              } finally {
+                setPicking(false)
+              }
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="2" x2="12" y2="6" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="2" y1="12" x2="6" y2="12" /><line x1="18" y1="12" x2="22" y2="12" /></svg>
+            {picking ? t('config.picking' as any) : t('config.pickCoord' as any)}
+          </button>
+        </>
+      )}
+
+      {/* Window mode */}
+      {node.data.click_mode === 'window' && (
+        <>
+          <div className="config-field">
+            <label>{t('config.windowTitle')}</label>
+            <input
+              value={String(node.data.window_title || '')}
+              onChange={(e) => update('window_title', e.target.value)}
+              placeholder={t('config.windowTitle.placeholder')}
+            />
+          </div>
+          <button
+            type="button"
+            className="ghost"
+            style={{ width: '100%', fontSize: 12, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            disabled={picking}
+            onClick={async () => {
+              setPicking(true)
+              try {
+                const res = await screenApi.pickCoord('window')
+                if (!res.cancelled && res.x != null && res.y != null) {
+                  updateMultiple({
+                    ...(res.window_title ? { window_title: res.window_title } : {}),
+                    offset_x: res.x,
+                    offset_y: res.y,
+                  })
+                }
+              } finally {
+                setPicking(false)
+              }
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="3" /><line x1="12" y1="3" x2="12" y2="9" /><line x1="12" y1="15" x2="12" y2="21" /><line x1="3" y1="12" x2="9" y2="12" /><line x1="15" y1="12" x2="21" y2="12" /></svg>
+            {picking ? t('config.picking' as any) : t('config.pickWindow' as any)}
+          </button>
+          <div className="config-row">
+            <div className="config-field">
+              <label>{t('config.offsetX')}</label>
+              <input type="number" value={String(node.data.offset_x ?? 0)} onChange={(e) => update('offset_x', Number(e.target.value))} />
+            </div>
+            <div className="config-field">
+              <label>{t('config.offsetY')}</label>
+              <input type="number" value={String(node.data.offset_y ?? 0)} onChange={(e) => update('offset_y', Number(e.target.value))} />
+            </div>
+          </div>
+        </>
+      )}
+    </>
   )
 }
 

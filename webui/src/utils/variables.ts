@@ -33,6 +33,10 @@ const NODE_OUTPUTS: Record<string, { suffix: string; type: VarField['type'] }[]>
     { suffix: 'x', type: 'number' },
     { suffix: 'y', type: 'number' },
   ],
+  mouse_action: [
+    { suffix: 'x', type: 'number' },
+    { suffix: 'y', type: 'number' },
+  ],
 }
 
 /** Operators available for each variable type */
