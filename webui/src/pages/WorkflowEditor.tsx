@@ -220,8 +220,14 @@ function WorkflowEditorInner() {
     return chain
   }, [])
 
-  /** Unsnap a specific pair (topId → bottomId), unhide edge */
+  /** Unsnap a specific pair (topId → bottomId), unhide edge, reposition remaining chain */
   const unsnapPair = useCallback((topId: string, bottomId: string) => {
+    // Collect the remaining chain below bottomId BEFORE updating snapGroups
+    const sg = snapGroupsRef.current
+    const remainingChain: string[] = []
+    let cur: string | undefined = bottomId
+    while (cur) { remainingChain.push(cur); cur = sg.get(cur)?.below }
+
     setSnapGroups((prev) => {
       const next = new Map(prev)
       const topInfo = next.get(topId)
@@ -239,7 +245,33 @@ function WorkflowEditorInner() {
     setEdges((eds) => eds.map((e) =>
       e.source === topId && e.target === bottomId ? { ...e, hidden: false } : e
     ))
-  }, [setEdges])
+
+    // Reposition remaining chain: the unsnapped bottom node loses its snap-merge-divider,
+    // which changes its height. Wait for DOM to settle, then re-stack chain members.
+    if (remainingChain.length > 1) {
+      // Use double-rAF to wait for React render + ReactFlow measurement
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        setNodes((nds) => {
+          const nodeMap = new Map(nds.map((n) => [n.id, n]))
+          let changed = false
+          for (let i = 1; i < remainingChain.length; i++) {
+            const aboveNode = nodeMap.get(remainingChain[i - 1])
+            const belowNode = nodeMap.get(remainingChain[i])
+            if (!aboveNode || !belowNode) continue
+            const aboveHeight = (aboveNode as any).measured?.height || 50
+            const expectedY = aboveNode.position.y + aboveHeight
+            if (Math.abs(belowNode.position.y - expectedY) > 1) {
+              changed = true
+              const updated = { ...belowNode, position: { ...belowNode.position, y: expectedY } }
+              nodeMap.set(remainingChain[i], updated)
+            }
+          }
+          if (!changed) return nds
+          return nds.map((n) => nodeMap.get(n.id) || n)
+        })
+      }))
+    }
+  }, [setEdges, setNodes])
 
   /** Sync snapDir to node data whenever snapGroups changes */
   useEffect(() => {
@@ -371,32 +403,56 @@ function WorkflowEditorInner() {
     (nodeId: string, data: Record<string, unknown>) => {
       pushSnapshot()
 
+      const nt = (data.nodeType as string) || ''
+
       // Check if snap needs to be released (node becomes multi-output or multi-input)
       const snapInfo = snapGroupsRef.current.get(nodeId)
+      let didUnsnap = false
       if (snapInfo) {
-        const nt = (data.nodeType as string) || ''
         const isMultiOutput = nt === 'branch' || nt === 'condition' || nt === 'loop' || (nt === 'find_image' && !!data.timeout_enabled)
         const isMultiInput = nt === 'loop'
 
         if (isMultiOutput && snapInfo.below) {
           unsnapPair(nodeId, snapInfo.below)
-          // For timeout-enabled find_image, assign edge to 'success' handle
-          if (nt === 'find_image' && data.timeout_enabled) {
-            const belowId = snapInfo.below
-            setEdges((eds) => eds.map((e) =>
-              e.source === nodeId && e.target === belowId ? { ...e, sourceHandle: 'success' } : e
-            ))
-          }
+          didUnsnap = true
         }
         if (isMultiInput && snapInfo.above) {
           unsnapPair(snapInfo.above, nodeId)
+          didUnsnap = true
         }
       }
 
+      // When a find_image node toggles timeout_enabled, migrate all outgoing edges'
+      // sourceHandle so they match the new handle IDs.
+      if (nt === 'find_image') {
+        const prevNode = nodesRef.current.find((n) => n.id === nodeId)
+        const wasTimeout = prevNode && !!(prevNode.data as any).timeout_enabled
+        const isTimeout = !!data.timeout_enabled
+
+        if (!wasTimeout && isTimeout) {
+          // Single default handle → named "success"/"timeout" handles.
+          // Reassign all outgoing edges from default handle to "success".
+          setEdges((eds) => eds.map((e) =>
+            e.source === nodeId && !e.sourceHandle ? { ...e, sourceHandle: 'success' } : e
+          ))
+        } else if (wasTimeout && !isTimeout) {
+          // Named handles → single default handle.
+          // Clear sourceHandle on all outgoing edges from this node.
+          setEdges((eds) => eds.map((e) =>
+            e.source === nodeId && (e.sourceHandle === 'success' || e.sourceHandle === 'timeout')
+              ? { ...e, sourceHandle: undefined } : e
+          ))
+        }
+      }
+
+      // Strip snapDir from data when we unsnapped — it will be re-synced by the
+      // snapGroups useEffect. This prevents stale snapDir from hiding handles.
+      const { snapDir: _sd, ...cleanData } = data
+      const nodeData = didUnsnap ? cleanData : data
       setNodes((nds) =>
-        nds.map((n) => (n.id === nodeId ? { ...n, data } : n)),
+        nds.map((n) => (n.id === nodeId ? { ...n, data: nodeData } : n)),
       )
-      setSelectedNode((prev) => (prev?.id === nodeId ? { ...prev, data } : prev))
+      setSelectedNode((prev) => (prev?.id === nodeId ? { ...prev, data: nodeData } : prev))
     },
     [setNodes, setEdges, pushSnapshot, unsnapPair],
   )
