@@ -55,12 +55,13 @@ function getNodeIcon(nodeType: string): ComponentType<SVGProps<SVGSVGElement>> {
   }
 }
 
-export default function FlowNode({ data, type }: NodeProps) {
+export default function FlowNode({ id, data, type }: NodeProps) {
   const { t } = useI18n()
   const nodeType = (data.nodeType as string) || type || 'click'
   const category = getNodeCategory(nodeType)
   const label = t(`node.${nodeType}` as any) || nodeType
   const Icon = getNodeIcon(nodeType)
+  const snapDir = data.snapDir as 'top' | 'bottom' | 'middle' | undefined
 
   const isBranch = nodeType === 'branch' || nodeType === 'condition'
   const isLoop = nodeType === 'loop'
@@ -155,9 +156,30 @@ export default function FlowNode({ data, type }: NodeProps) {
   const templateId = data.template_id as string | undefined
   const showThumbnail = (nodeType === 'find_image' || nodeType === 'loop') && templateId
 
+  const hasAbove = snapDir === 'bottom' || snapDir === 'middle'
+  const hasBelow = snapDir === 'top' || snapDir === 'middle'
+
   return (
-    <div className={`flow-node flow-node--${category} ${nodeType}`}>
-      <Handle type="target" position={Position.Top} />
+    <div className={`flow-node flow-node--${category} ${nodeType}${snapDir ? ` snap-${snapDir}` : ''}`}>
+      {/* Top handle: hidden when this node has a neighbor above */}
+      {!hasAbove && <Handle type="target" position={Position.Top} />}
+
+      {/* Snap chain divider with link icon (rendered at top of node that has above neighbor) */}
+      {hasAbove && (
+        <div
+          className="snap-merge-divider"
+          onClick={() => window.dispatchEvent(new CustomEvent('snap-unlink', { detail: { nodeId: id } }))}
+          title={t('ctx.unsnap')}
+        >
+          <div className="snap-merge-line" />
+          <svg className="snap-merge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+          <div className="snap-merge-line" />
+        </div>
+      )}
+
       <div className="node-header">
         <span className="node-icon"><Icon width={16} height={16} /></span>
         <span className="node-label">{label}</span>
@@ -172,26 +194,28 @@ export default function FlowNode({ data, type }: NodeProps) {
         </div>
       )}
       {detail && <div className="node-detail">{detail}</div>}
-      {isBranch ? (
-        <>
-          <Handle type="source" position={Position.Bottom} id="true" className="handle-dot handle-dot--true" style={{ left: '30%' }} title={t('handle.branch.true')} />
-          <Handle type="source" position={Position.Bottom} id="false" className="handle-dot handle-dot--false" style={{ left: '70%' }} title={t('handle.branch.false')} />
-        </>
-      ) : isLoop ? (
-        <>
-          {/* Left: loop-back entry */}
-          <Handle type="target" position={Position.Left} id="loop_back" className="handle-dot handle-dot--loop-back" title={t('handle.loop.back')} />
-          {/* Bottom: body output + done */}
-          <Handle type="source" position={Position.Bottom} id="body" className="handle-dot handle-dot--body" style={{ left: '35%' }} title={t('handle.loop.body')} />
-          <Handle type="source" position={Position.Bottom} id="done" className="handle-dot handle-dot--done" style={{ left: '70%' }} title={t('handle.loop.done')} />
-        </>
-      ) : hasTimeout ? (
-        <>
-          <Handle type="source" position={Position.Bottom} id="success" className="handle-dot handle-dot--success" style={{ left: '30%' }} title={t('handle.timeout.success')} />
-          <Handle type="source" position={Position.Bottom} id="timeout" className="handle-dot handle-dot--timeout" style={{ left: '70%' }} title={t('handle.timeout.timeout')} />
-        </>
-      ) : (
-        <Handle type="source" position={Position.Bottom} />
+
+      {/* Bottom handles: hidden when this node has a neighbor below */}
+      {!hasBelow && (
+        isBranch ? (
+          <>
+            <Handle type="source" position={Position.Bottom} id="true" className="handle-dot handle-dot--true" style={{ left: '30%' }} title={t('handle.branch.true')} />
+            <Handle type="source" position={Position.Bottom} id="false" className="handle-dot handle-dot--false" style={{ left: '70%' }} title={t('handle.branch.false')} />
+          </>
+        ) : isLoop ? (
+          <>
+            <Handle type="target" position={Position.Left} id="loop_back" className="handle-dot handle-dot--loop-back" title={t('handle.loop.back')} />
+            <Handle type="source" position={Position.Bottom} id="body" className="handle-dot handle-dot--body" style={{ left: '35%' }} title={t('handle.loop.body')} />
+            <Handle type="source" position={Position.Bottom} id="done" className="handle-dot handle-dot--done" style={{ left: '70%' }} title={t('handle.loop.done')} />
+          </>
+        ) : hasTimeout ? (
+          <>
+            <Handle type="source" position={Position.Bottom} id="success" className="handle-dot handle-dot--success" style={{ left: '30%' }} title={t('handle.timeout.success')} />
+            <Handle type="source" position={Position.Bottom} id="timeout" className="handle-dot handle-dot--timeout" style={{ left: '70%' }} title={t('handle.timeout.timeout')} />
+          </>
+        ) : (
+          <Handle type="source" position={Position.Bottom} />
+        )
       )}
     </div>
   )

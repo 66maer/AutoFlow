@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ReactFlow,
@@ -159,11 +159,10 @@ function WorkflowEditorInner() {
 
   const [magnetEnabled, setMagnetEnabled] = useState(true)
   /**
-   * Snap groups: maps nodeId → partnerId for snapped pairs.
-   * If A snaps to B: snapGroups has A→B and B→A.
-   * The "top" node (smaller y) is the source; "bottom" is target.
+   * Snap groups: maps nodeId → { above?, below? } for chain connections.
+   * A chain A→B→C: A={below:B}, B={above:A,below:C}, C={above:B}
    */
-  const [snapGroups, setSnapGroups] = useState<Map<string, string>>(new Map())
+  const [snapGroups, setSnapGroups] = useState<Map<string, { above?: string; below?: string }>>(new Map())
 
   const clipboardRef = useRef<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -210,6 +209,76 @@ function WorkflowEditorInner() {
   const snapGroupsRef = useRef(snapGroups)
   snapGroupsRef.current = snapGroups
 
+  /** Get all node IDs in a snap chain, top-to-bottom order */
+  const getSnapChain = useCallback((nodeId: string): string[] => {
+    const sg = snapGroupsRef.current
+    let top = nodeId
+    while (sg.get(top)?.above) top = sg.get(top)!.above!
+    const chain: string[] = []
+    let cur: string | undefined = top
+    while (cur) { chain.push(cur); cur = sg.get(cur)?.below }
+    return chain
+  }, [])
+
+  /** Unsnap a specific pair (topId → bottomId), unhide edge */
+  const unsnapPair = useCallback((topId: string, bottomId: string) => {
+    setSnapGroups((prev) => {
+      const next = new Map(prev)
+      const topInfo = next.get(topId)
+      if (topInfo) {
+        const u = { ...topInfo }; delete u.below
+        if (u.above) next.set(topId, u); else next.delete(topId)
+      }
+      const botInfo = next.get(bottomId)
+      if (botInfo) {
+        const u = { ...botInfo }; delete u.above
+        if (u.below) next.set(bottomId, u); else next.delete(bottomId)
+      }
+      return next
+    })
+    setEdges((eds) => eds.map((e) =>
+      e.source === topId && e.target === bottomId ? { ...e, hidden: false } : e
+    ))
+  }, [setEdges])
+
+  /** Sync snapDir to node data whenever snapGroups changes */
+  useEffect(() => {
+    setNodes((nds) => {
+      let changed = false
+      const updated = nds.map((n) => {
+        const info = snapGroups.get(n.id)
+        let dir: string | undefined
+        if (info?.above && info?.below) dir = 'middle'
+        else if (info?.above) dir = 'bottom'
+        else if (info?.below) dir = 'top'
+        const current = (n.data as any).snapDir
+        if (dir === current) return n
+        changed = true
+        if (dir) return { ...n, data: { ...n.data, snapDir: dir } }
+        if (current) {
+          const { snapDir: _sd, ...rest } = n.data as Record<string, unknown>
+          return { ...n, data: rest }
+        }
+        return n
+      })
+      return changed ? updated : nds
+    })
+  }, [snapGroups, setNodes])
+
+  /** Listen for snap-unlink events from FlowNode link icon clicks */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { nodeId } = (e as CustomEvent).detail
+      const info = snapGroupsRef.current.get(nodeId)
+      if (info?.above) {
+        pushSnapshot()
+        unsnapPair(info.above, nodeId)
+      }
+    }
+    window.addEventListener('snap-unlink', handler)
+    return () => window.removeEventListener('snap-unlink', handler)
+  }, [unsnapPair, pushSnapshot])
+
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       // Only snapshot for position start (drag start)
@@ -220,35 +289,37 @@ function WorkflowEditorInner() {
         pushSnapshot()
       }
 
-      // Snap group: propagate position changes to partner nodes
+      // Snap chain: propagate position changes to all chain members
       const posChanges = changes.filter(
         (c): c is NodeChange & { type: 'position'; id: string; position?: { x: number; y: number }; dragging?: boolean } =>
           c.type === 'position' && !!(c as any).position && (c as any).dragging,
       )
       const extraChanges: NodeChange[] = []
-      const currentSnap = snapGroupsRef.current
+      const handledIds = new Set(changes.filter((c) => c.type === 'position').map((c) => (c as any).id as string))
       for (const pc of posChanges) {
-        const partnerId = currentSnap.get(pc.id)
-        if (!partnerId) continue
-        // Already being dragged? skip
-        if (changes.some((c) => c.type === 'position' && (c as any).id === partnerId)) continue
+        const chain = getSnapChain(pc.id)
+        if (chain.length <= 1) continue
         const draggedNode = nodesRef.current.find((n) => n.id === pc.id)
-        const partnerNode = nodesRef.current.find((n) => n.id === partnerId)
-        if (!draggedNode || !partnerNode || !pc.position) continue
-        // Maintain relative offset
+        if (!draggedNode || !pc.position) continue
         const dx = pc.position.x - draggedNode.position.x
         const dy = pc.position.y - draggedNode.position.y
-        extraChanges.push({
-          type: 'position',
-          id: partnerId,
-          position: { x: partnerNode.position.x + dx, y: partnerNode.position.y + dy },
-          dragging: true,
-        } as any)
+        for (const memberId of chain) {
+          if (memberId === pc.id || handledIds.has(memberId)) continue
+          const memberNode = nodesRef.current.find((n) => n.id === memberId)
+          if (!memberNode) continue
+          handledIds.add(memberId)
+          extraChanges.push({
+            type: 'position',
+            id: memberId,
+            position: { x: memberNode.position.x + dx, y: memberNode.position.y + dy },
+            dragging: true,
+          } as any)
+        }
       }
 
       onNodesChange([...changes, ...extraChanges])
     },
-    [onNodesChange, pushSnapshot],
+    [onNodesChange, pushSnapshot, getSnapChain],
   )
 
   const handleEdgesChange = useCallback(
@@ -299,12 +370,35 @@ function WorkflowEditorInner() {
   const handleNodeDataChange = useCallback(
     (nodeId: string, data: Record<string, unknown>) => {
       pushSnapshot()
+
+      // Check if snap needs to be released (node becomes multi-output or multi-input)
+      const snapInfo = snapGroupsRef.current.get(nodeId)
+      if (snapInfo) {
+        const nt = (data.nodeType as string) || ''
+        const isMultiOutput = nt === 'branch' || nt === 'condition' || nt === 'loop' || (nt === 'find_image' && !!data.timeout_enabled)
+        const isMultiInput = nt === 'loop'
+
+        if (isMultiOutput && snapInfo.below) {
+          unsnapPair(nodeId, snapInfo.below)
+          // For timeout-enabled find_image, assign edge to 'success' handle
+          if (nt === 'find_image' && data.timeout_enabled) {
+            const belowId = snapInfo.below
+            setEdges((eds) => eds.map((e) =>
+              e.source === nodeId && e.target === belowId ? { ...e, sourceHandle: 'success' } : e
+            ))
+          }
+        }
+        if (isMultiInput && snapInfo.above) {
+          unsnapPair(snapInfo.above, nodeId)
+        }
+      }
+
       setNodes((nds) =>
         nds.map((n) => (n.id === nodeId ? { ...n, data } : n)),
       )
       setSelectedNode((prev) => (prev?.id === nodeId ? { ...prev, data } : prev))
     },
-    [setNodes, pushSnapshot],
+    [setNodes, setEdges, pushSnapshot, unsnapPair],
   )
 
   // Counter for offset when adding nodes to avoid overlap
@@ -375,6 +469,41 @@ function WorkflowEditorInner() {
   }, [pushSnapshot, setNodes, setEdges])
 
   // ---- Delete selected (nodes + edges) ----
+  /** Clean up snap state for a set of deleted node IDs */
+  const cleanupSnapsForDelete = useCallback((deletedIds: Set<string>) => {
+    let hasChanges = false
+    for (const id of deletedIds) {
+      if (snapGroupsRef.current.has(id)) { hasChanges = true; break }
+    }
+    if (!hasChanges) return
+
+    setSnapGroups((prev) => {
+      const next = new Map(prev)
+      for (const id of deletedIds) {
+        const info = next.get(id)
+        if (!info) continue
+        // Clean up partners' references to deleted node
+        if (info.above && !deletedIds.has(info.above)) {
+          const aboveInfo = next.get(info.above)
+          if (aboveInfo) {
+            const u = { ...aboveInfo }; delete u.below
+            if (u.above) next.set(info.above, u); else next.delete(info.above)
+          }
+        }
+        if (info.below && !deletedIds.has(info.below)) {
+          const belowInfo = next.get(info.below)
+          if (belowInfo) {
+            const u = { ...belowInfo }; delete u.above
+            if (u.below) next.set(info.below, u); else next.delete(info.below)
+          }
+        }
+        next.delete(id)
+      }
+      return next
+    })
+    // snapDir sync handled by useEffect
+  }, [])
+
   const deleteSelected = useCallback(() => {
     const selectedNodes = nodesRef.current.filter((n) => n.selected)
     const selectedEdges = edgesRef.current.filter((e) => e.selected)
@@ -389,6 +518,7 @@ function WorkflowEditorInner() {
     if (selectedNodes.length === 0 && selectedNode) {
       // Delete the panel-selected node
       pushSnapshot()
+      cleanupSnapsForDelete(new Set([selectedNode.id]))
       setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id))
       setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id))
       setSelectedNode(null)
@@ -398,11 +528,12 @@ function WorkflowEditorInner() {
     if (selectedNodes.length > 0) {
       pushSnapshot()
       const ids = new Set(selectedNodes.map((n) => n.id))
+      cleanupSnapsForDelete(ids)
       setNodes((nds) => nds.filter((n) => !ids.has(n.id)))
       setEdges((eds) => eds.filter((e) => !ids.has(e.source) && !ids.has(e.target)))
       setSelectedNode(null)
     }
-  }, [selectedNode, pushSnapshot, setNodes, setEdges])
+  }, [selectedNode, pushSnapshot, setNodes, setEdges, cleanupSnapsForDelete])
 
   // ---- Drag auto-connect / edge-insert preview ----
   const NODE_HALF_W = 70
@@ -474,70 +605,67 @@ function WorkflowEditorInner() {
   const SNAP_THRESHOLD = 15 // px distance for magnet snap
 
   const onNodeDragStop = useCallback((_: React.MouseEvent, dragNode: Node) => {
-    // Magnet snap detection
     if (!magnetEnabled) return
-    // Don't snap if already snapped
-    if (snapGroupsRef.current.has(dragNode.id)) return
+    const dragSnap = snapGroupsRef.current.get(dragNode.id)
 
     const dragCx = dragNode.position.x + NODE_HALF_W
-    const dragBottom = dragNode.position.y + NODE_HALF_H * 2
+    const dragHeight = (dragNode as any).measured?.height || NODE_HALF_H * 2
+    const dragBottom = dragNode.position.y + dragHeight
     const dragTop = dragNode.position.y
 
     for (const n of nodesRef.current) {
       if (n.id === dragNode.id) continue
-      if (snapGroupsRef.current.has(n.id)) continue
 
       const ncx = n.position.x + NODE_HALF_W
-      const nBottom = n.position.y + NODE_HALF_H * 2
+      const nHeight = (n as any).measured?.height || NODE_HALF_H * 2
+      const nBottom = n.position.y + nHeight
       const nTop = n.position.y
       const dx = Math.abs(dragCx - ncx)
 
-      // Check: drag node below n (n is source, drag is target)
+      // Check: drag node below n (n=top, drag=bottom)
       if (dx < SNAP_THRESHOLD && Math.abs(dragTop - nBottom) < SNAP_THRESHOLD) {
+        if (dragSnap?.above) continue // already has snap above
+        if (snapGroupsRef.current.get(n.id)?.below) continue // n already has snap below
         if (isSingleOutput(n.id) && isSingleInput(dragNode.id)) {
-          // Snap: align drag node directly below n
           const snapPos = { x: n.position.x, y: nBottom }
           setNodes((nds) => nds.map((nd) =>
             nd.id === dragNode.id ? { ...nd, position: snapPos } : nd
           ))
-          // Auto-connect if no edge exists
-          const edgeExists = edgesRef.current.some((e) => e.source === n.id && e.target === dragNode.id)
-          if (!edgeExists) {
-            setEdges((eds) => [...eds, {
-              id: `e_${n.id}_${dragNode.id}`,
-              source: n.id,
-              target: dragNode.id,
-            }])
+          const existingEdge = edgesRef.current.find((e) => e.source === n.id && e.target === dragNode.id)
+          if (existingEdge) {
+            setEdges((eds) => eds.map((e) => e.id === existingEdge.id ? { ...e, hidden: true } : e))
+          } else {
+            setEdges((eds) => [...eds, { id: `e_${n.id}_${dragNode.id}`, source: n.id, target: dragNode.id, hidden: true }])
           }
           setSnapGroups((prev) => {
             const next = new Map(prev)
-            next.set(n.id, dragNode.id)
-            next.set(dragNode.id, n.id)
+            next.set(n.id, { ...next.get(n.id), below: dragNode.id })
+            next.set(dragNode.id, { ...next.get(dragNode.id), above: n.id })
             return next
           })
           return
         }
       }
 
-      // Check: drag node above n (drag is source, n is target)
+      // Check: drag node above n (drag=top, n=bottom)
       if (dx < SNAP_THRESHOLD && Math.abs(nTop - dragBottom) < SNAP_THRESHOLD) {
+        if (dragSnap?.below) continue
+        if (snapGroupsRef.current.get(n.id)?.above) continue
         if (isSingleOutput(dragNode.id) && isSingleInput(n.id)) {
-          const snapPos = { x: n.position.x, y: nTop - NODE_HALF_H * 2 }
+          const snapPos = { x: n.position.x, y: nTop - dragHeight }
           setNodes((nds) => nds.map((nd) =>
             nd.id === dragNode.id ? { ...nd, position: snapPos } : nd
           ))
-          const edgeExists = edgesRef.current.some((e) => e.source === dragNode.id && e.target === n.id)
-          if (!edgeExists) {
-            setEdges((eds) => [...eds, {
-              id: `e_${dragNode.id}_${n.id}`,
-              source: dragNode.id,
-              target: n.id,
-            }])
+          const existingEdge = edgesRef.current.find((e) => e.source === dragNode.id && e.target === n.id)
+          if (existingEdge) {
+            setEdges((eds) => eds.map((e) => e.id === existingEdge.id ? { ...e, hidden: true } : e))
+          } else {
+            setEdges((eds) => [...eds, { id: `e_${dragNode.id}_${n.id}`, source: dragNode.id, target: n.id, hidden: true }])
           }
           setSnapGroups((prev) => {
             const next = new Map(prev)
-            next.set(dragNode.id, n.id)
-            next.set(n.id, dragNode.id)
+            next.set(dragNode.id, { ...next.get(dragNode.id), below: n.id })
+            next.set(n.id, { ...next.get(n.id), above: dragNode.id })
             return next
           })
           return
@@ -828,6 +956,8 @@ function WorkflowEditorInner() {
         x: e.clientX - (bounds?.left || 0),
         y: e.clientY - (bounds?.top || 0),
       })
+      // Center node horizontally on cursor (position is top-left corner)
+      position.x -= NODE_HALF_W
 
       pushSnapshot()
       const defaultData: Record<string, unknown> = { nodeType, ...DEFAULT_DATA_MAP[nodeType] }
@@ -922,35 +1052,12 @@ function WorkflowEditorInner() {
       const nodeType = (node.data as any).nodeType as string
       const quickAddTypes = QUICK_ADD_MAP[nodeType] || ALL_NODE_TYPES
 
-      const isSnapped = snapGroups.has(node.id)
-
       const items: MenuEntry[] = [
-        ...(isSnapped ? [{
-          label: t('ctx.unsnap' as any),
-          onClick: () => {
-            const partnerId = snapGroups.get(node.id)
-            setSnapGroups((prev) => {
-              const next = new Map(prev)
-              next.delete(node.id)
-              if (partnerId) next.delete(partnerId)
-              return next
-            })
-          },
-        }, { separator: true } as MenuEntry] : []),
         { label: t('ctx.copy'), shortcut: 'Ctrl+C', onClick: () => { setSelectedNode(node); copySelected() } },
         { label: t('ctx.cut'), shortcut: 'Ctrl+X', onClick: () => { setSelectedNode(node); cutSelected() } },
         { label: t('ctx.delete'), shortcut: 'Del', onClick: () => {
           pushSnapshot()
-          // Also unsnap partner
-          const partnerId = snapGroups.get(node.id)
-          if (partnerId) {
-            setSnapGroups((prev) => {
-              const next = new Map(prev)
-              next.delete(node.id)
-              next.delete(partnerId)
-              return next
-            })
-          }
+          cleanupSnapsForDelete(new Set([node.id]))
           setNodes((nds) => nds.filter((n) => n.id !== node.id))
           setEdges((eds) => eds.filter((ed) => ed.source !== node.id && ed.target !== node.id))
           setSelectedNode(null)
@@ -964,7 +1071,7 @@ function WorkflowEditorInner() {
 
       setCtxMenu({ x: e.clientX, y: e.clientY, items })
     },
-    [t, copySelected, cutSelected, pushSnapshot, setNodes, setEdges, addNodeAfter],
+    [t, copySelected, cutSelected, pushSnapshot, setNodes, setEdges, addNodeAfter, cleanupSnapsForDelete],
   )
 
   const onEdgeContextMenu = useCallback(
@@ -1020,12 +1127,13 @@ function WorkflowEditorInner() {
     setSaving(true)
     try {
       const saveNodes = nodes.map((n) => {
-        const nt = (n.data as Record<string, any>).nodeType || 'mouse_action'
+        const { snapDir, ...nodeData } = n.data as Record<string, any>
+        const nt = nodeData.nodeType || 'mouse_action'
         return {
           id: n.id,
           type: nt,
           position: n.position,
-          data: n.data,
+          data: nodeData,
         }
       })
       await api.update(id, {
@@ -1051,7 +1159,22 @@ function WorkflowEditorInner() {
     if (!selectedNode) return
     pushSnapshot()
     const nodeId = selectedNode.id
-    setNodes((nds) => nds.filter((n) => n.id !== nodeId))
+    const partnerId = snapGroupsRef.current.get(nodeId)
+    if (partnerId) {
+      setSnapGroups((prev) => {
+        const next = new Map(prev)
+        next.delete(nodeId)
+        next.delete(partnerId)
+        return next
+      })
+    }
+    setNodes((nds) => nds.filter((n) => n.id !== nodeId).map((n) => {
+      if (n.id === partnerId) {
+        const { snapDir, ...rest } = n.data as Record<string, unknown>
+        return { ...n, data: rest }
+      }
+      return n
+    }))
     setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId))
     setSelectedNode(null)
   }, [selectedNode, pushSnapshot, setNodes, setEdges])
@@ -1218,38 +1341,41 @@ function WorkflowEditorInner() {
         )}
 
         {selectedNode && (() => {
-          const partnerId = snapGroups.get(selectedNode.id)
-          const partnerNode = partnerId ? nodes.find((n) => n.id === partnerId) : null
-          // Order: top node first (smaller y)
-          const topNode = partnerNode && partnerNode.position.y < selectedNode.position.y ? partnerNode : selectedNode
-          const bottomNode = partnerNode && partnerNode.position.y < selectedNode.position.y ? selectedNode : partnerNode
+          const chain = getSnapChain(selectedNode.id)
+          const chainNodes = chain.length > 1
+            ? chain.map((nid) => nodes.find((n) => n.id === nid)).filter(Boolean) as Node[]
+            : null
+
+          if (chainNodes) {
+            return (
+              <div className="node-config-panel">
+                {chainNodes.map((cn, idx) => (
+                  <React.Fragment key={cn.id}>
+                    {idx > 0 && <div className="config-snap-divider" />}
+                    <NodeConfigPanel
+                      node={cn}
+                      nodes={nodes}
+                      edges={edges}
+                      onChange={handleNodeDataChange}
+                      onClose={() => setSelectedNode(null)}
+                      onDelete={handleDeleteNode}
+                      embedded
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+            )
+          }
 
           return (
-            <div className="node-config-panel">
-              <NodeConfigPanel
-                node={topNode}
-                nodes={nodes}
-                edges={edges}
-                onChange={handleNodeDataChange}
-                onClose={() => setSelectedNode(null)}
-                onDelete={handleDeleteNode}
-                embedded
-              />
-              {bottomNode && (
-                <>
-                  <div className="config-snap-divider" />
-                  <NodeConfigPanel
-                    node={bottomNode}
-                    nodes={nodes}
-                    edges={edges}
-                    onChange={handleNodeDataChange}
-                    onClose={() => setSelectedNode(null)}
-                    onDelete={handleDeleteNode}
-                    embedded
-                  />
-                </>
-              )}
-            </div>
+            <NodeConfigPanel
+              node={selectedNode}
+              nodes={nodes}
+              edges={edges}
+              onChange={handleNodeDataChange}
+              onClose={() => setSelectedNode(null)}
+              onDelete={handleDeleteNode}
+            />
           )
         })()}
       </div>

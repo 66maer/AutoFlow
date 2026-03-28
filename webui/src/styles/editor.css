@@ -310,6 +310,63 @@
   opacity: 0.5;
 }
 
+/* Snap merge: top node of pair */
+.flow-node.snap-top {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+  margin-bottom: 0;
+}
+
+/* Snap merge: bottom node of pair */
+.flow-node.snap-bottom {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top-color: transparent;
+  margin-top: 0;
+}
+
+/* Snap merge: middle node of chain (both neighbors) */
+.flow-node.snap-middle {
+  border-radius: 0;
+  border-top-color: transparent;
+  border-bottom-color: transparent;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Snap merge divider between two merged nodes */
+.snap-merge-divider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -8px -14px 4px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.snap-merge-line {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+}
+
+.snap-merge-icon {
+  color: var(--text-muted);
+  opacity: 0.6;
+  flex-shrink: 0;
+  transition: color 0.15s, opacity 0.15s;
+}
+
+.snap-merge-divider:hover .snap-merge-icon {
+  color: var(--primary);
+  opacity: 1;
+}
+
+.snap-merge-divider:hover .snap-merge-line {
+  background: var(--primary);
+}
+
 /* Config checkbox inline */
 .config-checkbox {
   display: flex;
