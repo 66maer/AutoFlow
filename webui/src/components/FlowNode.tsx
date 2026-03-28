@@ -65,7 +65,6 @@ export default function FlowNode({ id, data, type }: NodeProps) {
 
   const isBranch = nodeType === 'branch' || nodeType === 'condition'
   const isLoop = nodeType === 'loop'
-  const hasTimeout = nodeType === 'find_image' && data.timeout_enabled
 
   // Build detail text
   let detail = ''
@@ -129,8 +128,6 @@ export default function FlowNode({ id, data, type }: NodeProps) {
     case 'find_image':
       if (!data.template_id) {
         detail = t('node.find_image.paste')
-      } else if (hasTimeout) {
-        detail = t('node.find_image.timeout', { ms: String(data.timeout_ms || 5000) })
       }
       break
     case 'capture': {
@@ -207,11 +204,6 @@ export default function FlowNode({ id, data, type }: NodeProps) {
             <Handle type="target" position={Position.Left} id="loop_back" className="handle-dot handle-dot--loop-back" title={t('handle.loop.back')} />
             <Handle type="source" position={Position.Bottom} id="body" className="handle-dot handle-dot--body" style={{ left: '35%' }} title={t('handle.loop.body')} />
             <Handle type="source" position={Position.Bottom} id="done" className="handle-dot handle-dot--done" style={{ left: '70%' }} title={t('handle.loop.done')} />
-          </>
-        ) : hasTimeout ? (
-          <>
-            <Handle type="source" position={Position.Bottom} id="success" className="handle-dot handle-dot--success" style={{ left: '30%' }} title={t('handle.timeout.success')} />
-            <Handle type="source" position={Position.Bottom} id="timeout" className="handle-dot handle-dot--timeout" style={{ left: '70%' }} title={t('handle.timeout.timeout')} />
           </>
         ) : (
           <Handle type="source" position={Position.Bottom} />

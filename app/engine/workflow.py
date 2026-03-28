@@ -40,12 +40,8 @@ def _load_template(data: dict[str, Any]):
                 tpl = cv2.imread(str(p))
                 if tpl is not None:
                     return tpl
-                raise WorkflowExecutionError(
-                    f"Cannot decode template: {p}"
-                )
-        raise WorkflowExecutionError(
-            f"Template not found: {template_id}"
-        )
+                raise WorkflowExecutionError(f"Cannot decode template: {p}")
+        raise WorkflowExecutionError(f"Template not found: {template_id}")
 
     # Fallback: legacy template_path
     tpl_path = data.get("template_path", "")
@@ -53,9 +49,7 @@ def _load_template(data: dict[str, Any]):
         tpl = cv2.imread(tpl_path)
         if tpl is not None:
             return tpl
-        raise WorkflowExecutionError(
-            f"Cannot read template: {tpl_path}"
-        )
+        raise WorkflowExecutionError(f"Cannot read template: {tpl_path}")
 
     raise WorkflowExecutionError("No template specified")
 
@@ -100,17 +94,13 @@ class WorkflowEngine:
 
         # Find start nodes (no incoming edges)
         targets = {e["target"] for e in edges}
-        start_nodes = [
-            n["id"] for n in nodes if n["id"] not in targets
-        ]
+        start_nodes = [n["id"] for n in nodes if n["id"] not in targets]
 
         if not start_nodes and nodes:
             start_nodes = [nodes[0]["id"]]
 
         for start_id in start_nodes:
-            await self._execute_from(
-                start_id, node_map, adj, ctx, on_step
-            )
+            await self._execute_from(start_id, node_map, adj, ctx, on_step)
 
         return ctx
 
@@ -156,9 +146,7 @@ class WorkflowEngine:
             await on_step(node_id, "running", {"label": node_label})
 
         try:
-            result = await self._execute_node(
-                node_type, node_data, ctx
-            )
+            result = await self._execute_node(node_type, node_data, ctx)
             elapsed_ms = round((time.time() - started_at) * 1000)
             step_log["status"] = "success"
             step_log["result"] = result
@@ -190,12 +178,8 @@ class WorkflowEngine:
         if node_type in ("condition", "branch"):
             found = ctx.last_match is not None
             for edge in next_edges:
-                label = edge.get(
-                    "sourceHandle", edge.get("label", "")
-                )
-                if (found and label == "true") or (
-                    not found and label == "false"
-                ):
+                label = edge.get("sourceHandle", edge.get("label", ""))
+                if (found and label == "true") or (not found and label == "false"):
                     await self._execute_from(
                         edge["target"],
                         node_map,
@@ -203,15 +187,11 @@ class WorkflowEngine:
                         ctx,
                         on_step,
                     )
-        elif (
-            node_type == "find_image"
-            and node_data.get("timeout_enabled")
-        ):
-            # Timeout-enabled find_image has "success" and "timeout" handles
+        elif node_type == "find_image":
+            # find_image always follows edges when match is found
             found = ctx.last_match is not None
-            for edge in next_edges:
-                handle = edge.get("sourceHandle", "")
-                if handle == "timeout" and not found:
+            if found:
+                for edge in next_edges:
                     await self._execute_from(
                         edge["target"],
                         node_map,
@@ -219,24 +199,6 @@ class WorkflowEngine:
                         ctx,
                         on_step,
                     )
-                elif handle == "success" and found:
-                    await self._execute_from(
-                        edge["target"],
-                        node_map,
-                        adj,
-                        ctx,
-                        on_step,
-                    )
-                elif handle not in ("success", "timeout"):
-                    # Default handle (no specific handle ID) — follow if found
-                    if found:
-                        await self._execute_from(
-                            edge["target"],
-                            node_map,
-                            adj,
-                            ctx,
-                            on_step,
-                        )
         else:
             for edge in next_edges:
                 await self._execute_from(
@@ -259,28 +221,20 @@ class WorkflowEngine:
 
         elif node_type == "find_image":
             tpl = _load_template(data)
+            interval_ms = data.get("interval_ms", 0)
 
-            if data.get("timeout_enabled"):
-                # Retry loop until match found or timeout
-                timeout_ms = data.get("timeout_ms", 5000)
-                interval_ms = data.get("retry_interval_ms", 500)
-                deadline = time.monotonic() + timeout_ms / 1000.0
-                match = None
-                while not self._cancelled:
-                    ctx.last_capture = self._capture.capture()
-                    match = self._matcher.find(
-                        tpl, ctx.last_capture
-                    )
-                    if match:
-                        break
-                    if time.monotonic() >= deadline:
-                        break
-                    await asyncio.sleep(interval_ms / 1000.0)
-                ctx.last_match = match
-            else:
+            # Loop: capture → find → repeat until found or cancelled
+            match = None
+            while not self._cancelled:
                 ctx.last_capture = self._capture.capture()
                 match = self._matcher.find(tpl, ctx.last_capture)
-                ctx.last_match = match
+                if match:
+                    break
+                if interval_ms > 0:
+                    await asyncio.sleep(interval_ms / 1000.0)
+                else:
+                    await asyncio.sleep(0)  # yield to event loop
+            ctx.last_match = match
 
             if data.get("save_to"):
                 ctx.variables[data["save_to"]] = match
@@ -458,16 +412,12 @@ class WorkflowEngine:
             x = data.get("x")
             y = data.get("y")
             if x is None or y is None:
-                raise WorkflowExecutionError(
-                    "Coordinate click requires x and y"
-                )
+                raise WorkflowExecutionError("Coordinate click requires x and y")
             return int(x), int(y)
 
         if mode == "window":
             # TODO: implement window handle lookup
-            raise WorkflowExecutionError(
-                "Window mode not yet implemented"
-            )
+            raise WorkflowExecutionError("Window mode not yet implemented")
 
         # mode == "image": use specified variable or last_match
         match = self._resolve_match_var(data, ctx)

@@ -71,9 +71,7 @@ async def get_workflow(
     workflow_id: str,
     session: AsyncSession = Depends(get_session),
 ):
-    result = await session.execute(
-        select(Workflow).where(Workflow.id == workflow_id)
-    )
+    result = await session.execute(select(Workflow).where(Workflow.id == workflow_id))
     wf = result.scalars().first()
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -86,9 +84,7 @@ async def update_workflow(
     body: WorkflowUpdate,
     session: AsyncSession = Depends(get_session),
 ):
-    result = await session.execute(
-        select(Workflow).where(Workflow.id == workflow_id)
-    )
+    result = await session.execute(select(Workflow).where(Workflow.id == workflow_id))
     wf = result.scalars().first()
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -109,9 +105,7 @@ async def delete_workflow(
     workflow_id: str,
     session: AsyncSession = Depends(get_session),
 ):
-    result = await session.execute(
-        select(Workflow).where(Workflow.id == workflow_id)
-    )
+    result = await session.execute(select(Workflow).where(Workflow.id == workflow_id))
     wf = result.scalars().first()
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -126,21 +120,22 @@ async def run_workflow_endpoint(
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
 ):
-    result = await session.execute(
-        select(Workflow).where(Workflow.id == workflow_id)
-    )
+    result = await session.execute(select(Workflow).where(Workflow.id == workflow_id))
     wf = result.scalars().first()
     if wf is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     if workflow_id in get_running():
-        raise HTTPException(
-            status_code=409, detail="Workflow is already running"
-        )
+        raise HTTPException(status_code=409, detail="Workflow is already running")
 
     # Run in background so the API responds immediately
     background_tasks.add_task(
-        run_workflow, workflow_id, wf.nodes or [], wf.edges or []
+        run_workflow,
+        workflow_id,
+        wf.nodes or [],
+        wf.edges or [],
+        repeat_count=wf.repeat_count,
+        repeat_forever=wf.repeat_forever,
     )
     return {"status": "started", "workflow_id": workflow_id}
 
@@ -149,7 +144,5 @@ async def run_workflow_endpoint(
 async def stop_workflow_endpoint(workflow_id: str):
     stopped = stop_workflow(workflow_id)
     if not stopped:
-        raise HTTPException(
-            status_code=404, detail="Workflow is not running"
-        )
+        raise HTTPException(status_code=404, detail="Workflow is not running")
     return {"status": "stopping", "workflow_id": workflow_id}

@@ -75,12 +75,12 @@ async def run_workflow(
     nodes: list[dict[str, Any]],
     edges: list[dict[str, Any]],
     on_step: Any = None,
+    repeat_count: int = 1,
+    repeat_forever: bool = False,
 ) -> dict[str, Any]:
     """Run a workflow, returning execution result summary."""
     if workflow_id in _running:
-        raise RuntimeError(
-            f"Workflow {workflow_id} is already running"
-        )
+        raise RuntimeError(f"Workflow {workflow_id} is already running")
 
     engine = WorkflowEngine(
         capture=create_screen_capture(),
@@ -89,9 +89,7 @@ async def run_workflow(
     )
     _running[workflow_id] = engine
 
-    async def step_callback(
-        node_id: str, status: str, detail: dict[str, Any]
-    ) -> None:
+    async def step_callback(node_id: str, status: str, detail: dict[str, Any]) -> None:
         # Find node type from nodes list
         node_type = ""
         for n in nodes:
@@ -123,18 +121,27 @@ async def run_workflow(
 
     started_at = datetime.now(UTC)
     try:
-        ctx = await engine.execute(
-            nodes, edges, on_step=step_callback
-        )
+        all_logs: list[dict[str, Any]] = []
+        iteration = 0
+        while True:
+            if engine._cancelled:
+                break
+            iteration += 1
+            ctx = await engine.execute(nodes, edges, on_step=step_callback)
+            all_logs.extend(ctx.logs)
+            if not repeat_forever and iteration >= repeat_count:
+                break
+            # Reset cancelled flag check between iterations
+            if engine._cancelled:
+                break
         result = {
             "status": "success",
             "started_at": started_at.isoformat(),
             "finished_at": datetime.now(UTC).isoformat(),
-            "logs": ctx.logs,
+            "logs": all_logs,
+            "iterations": iteration,
         }
-        await _save_log(
-            workflow_id, "success", started_at, {"logs": ctx.logs}
-        )
+        await _save_log(workflow_id, "success", started_at, {"logs": all_logs})
         # Broadcast workflow complete
         try:
             from app.ws.logs import broadcast_log

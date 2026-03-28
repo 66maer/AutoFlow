@@ -165,27 +165,10 @@ export default function NodeConfigPanel({ node, nodes, edges, onChange, onClose,
             <input value={String(node.data.save_to || '')} onChange={(e) => update('save_to', e.target.value)} placeholder="match1" />
           </div>
 
-          <div className="config-separator" />
-          <label className="config-checkbox">
-            <input
-              type="checkbox"
-              checked={!!node.data.timeout_enabled}
-              onChange={(e) => update('timeout_enabled', e.target.checked)}
-            />
-            {t('config.timeoutEnabled')}
-          </label>
-          {node.data.timeout_enabled && (
-            <>
-              <div className="config-field">
-                <label>{t('config.timeoutMs')}</label>
-                <input type="number" value={String(node.data.timeout_ms ?? 5000)} min="100" step="100" onChange={(e) => update('timeout_ms', Number(e.target.value))} />
-              </div>
-              <div className="config-field">
-                <label>{t('config.retryIntervalMs')}</label>
-                <input type="number" value={String(node.data.retry_interval_ms ?? 500)} min="100" step="100" onChange={(e) => update('retry_interval_ms', Number(e.target.value))} />
-              </div>
-            </>
-          )}
+          <div className="config-field">
+            <label>{t('config.findImageInterval')}</label>
+            <input type="number" value={String(node.data.interval_ms ?? 0)} min="0" step="100" onChange={(e) => update('interval_ms', Number(e.target.value))} />
+          </div>
         </>
       )}
 

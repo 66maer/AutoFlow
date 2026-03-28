@@ -69,7 +69,6 @@ const enUS = {
   'node.mouse_action.scroll_down': 'Scroll down {amount}',
   'node.mouse_action.double_click': 'Double click',
   'node.find_image.paste': 'Paste or select image',
-  'node.find_image.timeout': 'Timeout {ms}ms',
   'node.wait.detail': 'Wait {ms}ms',
   'node.loop.detail': 'Max {max} times',
   'node.loop.infinite': 'Infinite loop',
@@ -124,9 +123,7 @@ const enUS = {
   'config.stopWhen.notFound': 'Image Not Found',
   'config.intervalMs': 'Interval (ms)',
   'config.confidence': 'Confidence',
-  'config.timeoutEnabled': 'Enable Timeout',
-  'config.timeoutMs': 'Timeout (ms)',
-  'config.retryIntervalMs': 'Retry Interval (ms)',
+  'config.findImageInterval': 'Find interval (ms)',
   'config.loopMode': 'Loop Mode',
   'config.loopMode.count': 'Fixed Count',
   'config.loopMode.infinite': 'Infinite',
@@ -189,8 +186,6 @@ const enUS = {
   'handle.loop.done.short': 'Done',
   'handle.loop.back': 'Loop back: connect the last body node here',
   'handle.loop.back.short': 'Back',
-  'handle.timeout.success': 'Path when image is found',
-  'handle.timeout.timeout': 'Path when timeout is reached',
 
   // Context Menu
   'ctx.copy': 'Copy',

@@ -409,7 +409,7 @@ function WorkflowEditorInner() {
       const snapInfo = snapGroupsRef.current.get(nodeId)
       let didUnsnap = false
       if (snapInfo) {
-        const isMultiOutput = nt === 'branch' || nt === 'condition' || nt === 'loop' || (nt === 'find_image' && !!data.timeout_enabled)
+        const isMultiOutput = nt === 'branch' || nt === 'condition' || nt === 'loop'
         const isMultiInput = nt === 'loop'
 
         if (isMultiOutput && snapInfo.below) {
@@ -419,29 +419,6 @@ function WorkflowEditorInner() {
         if (isMultiInput && snapInfo.above) {
           unsnapPair(snapInfo.above, nodeId)
           didUnsnap = true
-        }
-      }
-
-      // When a find_image node toggles timeout_enabled, migrate all outgoing edges'
-      // sourceHandle so they match the new handle IDs.
-      if (nt === 'find_image') {
-        const prevNode = nodesRef.current.find((n) => n.id === nodeId)
-        const wasTimeout = prevNode && !!(prevNode.data as any).timeout_enabled
-        const isTimeout = !!data.timeout_enabled
-
-        if (!wasTimeout && isTimeout) {
-          // Single default handle → named "success"/"timeout" handles.
-          // Reassign all outgoing edges from default handle to "success".
-          setEdges((eds) => eds.map((e) =>
-            e.source === nodeId && !e.sourceHandle ? { ...e, sourceHandle: 'success' } : e
-          ))
-        } else if (wasTimeout && !isTimeout) {
-          // Named handles → single default handle.
-          // Clear sourceHandle on all outgoing edges from this node.
-          setEdges((eds) => eds.map((e) =>
-            e.source === nodeId && (e.sourceHandle === 'success' || e.sourceHandle === 'timeout')
-              ? { ...e, sourceHandle: undefined } : e
-          ))
         }
       }
 
@@ -638,14 +615,12 @@ function WorkflowEditorInner() {
   )
 
 
-  /** Check if a node has only a single default output handle (no branch/loop/timeout) */
+  /** Check if a node has only a single default output handle (no branch/loop) */
   const isSingleOutput = useCallback((nodeId: string) => {
     const node = nodesRef.current.find((n) => n.id === nodeId)
     if (!node) return false
     const nt = (node.data as any).nodeType || ''
-    // Branch, loop, timeout-enabled find_image have multiple outputs
     if (nt === 'branch' || nt === 'condition' || nt === 'loop') return false
-    if (nt === 'find_image' && (node.data as any).timeout_enabled) return false
     return true
   }, [])
 

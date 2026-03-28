@@ -69,7 +69,6 @@ const zhCN = {
   'node.mouse_action.scroll_down': '下滚 {amount}',
   'node.mouse_action.double_click': '双击',
   'node.find_image.paste': '粘贴或选择图片',
-  'node.find_image.timeout': '超时 {ms}ms',
   'node.wait.detail': '等待 {ms}ms',
   'node.loop.detail': '最多 {max} 次',
   'node.loop.infinite': '无限循环',
@@ -124,9 +123,7 @@ const zhCN = {
   'config.stopWhen.notFound': '未找到图片时停止',
   'config.intervalMs': '检查间隔 (ms)',
   'config.confidence': '匹配置信度',
-  'config.timeoutEnabled': '启用超时',
-  'config.timeoutMs': '超时时间 (ms)',
-  'config.retryIntervalMs': '重试间隔 (ms)',
+  'config.findImageInterval': '找图间隔 (ms)',
   'config.loopMode': '循环方式',
   'config.loopMode.count': '固定次数',
   'config.loopMode.infinite': '无限循环',
@@ -189,8 +186,6 @@ const zhCN = {
   'handle.loop.done.short': '完成',
   'handle.loop.back': '回环：循环体末尾节点连接到此处',
   'handle.loop.back.short': '回环',
-  'handle.timeout.success': '匹配成功时走此路径',
-  'handle.timeout.timeout': '超时后走此路径',
 
   // Context Menu
   'ctx.copy': '复制',

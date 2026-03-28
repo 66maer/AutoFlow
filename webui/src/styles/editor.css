@@ -218,8 +218,6 @@
 .handle-dot--body    { background: #6c63ff; border-color: #5a52d5; }
 .handle-dot--done    { background: #17a2b8; border-color: #117a8b; }
 .handle-dot--loop-back { background: #6c63ff; border-color: #5a52d5; }
-.handle-dot--success { background: #28a745; border-color: #1e7e34; }
-.handle-dot--timeout { background: #ffc107; border-color: #d39e00; }
 
 /* Node config panel */
 .node-config-panel {
